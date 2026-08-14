@@ -1,0 +1,8 @@
+{
+  "base_folder": "D:\\Tournages",
+  "include_fixed_drives": false,
+  "premiere": {
+    "project_template": "",
+    "premiere_exe": "C:\\Program Files\\Adobe\\Adobe Premiere Pro 2025\\Adobe Premiere Pro.exe"
+  }
+}
