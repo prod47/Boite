@@ -1,5 +1,0 @@
-# Optionnel : permet l'automatisation complète de Premiere Pro (création de
-# projet + import) sans clic manuel. Sans ce paquet, le script fonctionne
-# quand même : il copie les cartes et génère un script à lancer en un clic
-# dans Premiere Pro.
-pymiere>=1.3.1
