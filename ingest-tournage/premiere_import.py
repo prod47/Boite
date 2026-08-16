@@ -103,3 +103,81 @@ def launch_premiere_fallback(
     log("Dans Premiere Pro : ouvre ou crée ton projet, puis va dans")
     log("  Fichier > Scripts > Exécuter le fichier de script...")
     log(f"et sélectionne : {jsx_path}")
+
+
+# --- Fonctions utilisées par watcher.py (mode surveillance / zéro clic) ----
+
+
+def is_premiere_running(exe_name: str) -> bool:
+    try:
+        out = subprocess.check_output(
+            ["tasklist", "/FI", f"IMAGENAME eq {exe_name}"],
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+    except Exception:
+        return False
+    return exe_name.lower() in out.lower()
+
+
+def ensure_premiere_running(premiere_exe: str | None, log: Logger) -> bool:
+    """Lance Premiere Pro s'il n'est pas déjà ouvert. Renvoie True si Premiere
+    a dû être lancé (donc pas encore prêt à recevoir des commandes)."""
+    if not premiere_exe:
+        return False
+    exe_name = Path(premiere_exe).name
+    if is_premiere_running(exe_name):
+        return False
+    log("Premiere Pro n'est pas ouvert : lancement...")
+    subprocess.Popen([premiere_exe])
+    return True
+
+
+def pymiere_app_or_none():
+    """Renvoie l'objet app pymiere si Premiere Pro + le panneau Pymiere Link
+    répondent bien, sinon None (pas d'exception levée)."""
+    try:
+        import pymiere
+
+        app = pymiere.objects.app
+        _ = app.project  # force une vraie requête pour vérifier la connexion
+        return app
+    except Exception:
+        return None
+
+
+def open_or_create_project(app, session_dir: Path, project_template: str | None, log: Logger) -> bool:
+    """Ouvre le projet de la session s'il existe déjà (créé par un précédent
+    passage du watcher aujourd'hui), sinon le crée. Ne fait rien si un projet
+    correspondant semble déjà ouvert."""
+    project_path = session_dir / f"{session_dir.name}.prproj"
+    try:
+        if project_path.exists():
+            app.openDocument(str(project_path))
+            log(f"Projet Premiere de la session rouvert : {project_path}")
+        elif project_template and Path(project_template).exists():
+            app.openDocument(str(project_template))
+            app.project.saveAs(str(project_path))
+            log(f"Projet Premiere créé depuis le modèle : {project_path}")
+        else:
+            app.newProject(str(project_path))
+            log(f"Nouveau projet Premiere créé : {project_path}")
+        return True
+    except Exception as exc:
+        log(f"Impossible d'ouvrir/créer le projet Premiere ({exc}).")
+        return False
+
+
+def import_card(app, card_dir: Path, log: Logger) -> bool:
+    try:
+        proj = app.project
+        bin_ = proj.rootItem.createBin(card_dir.name)
+        files = _collect_files(card_dir)
+        if files:
+            proj.importFiles(files, True, bin_, False)
+        proj.save()
+        log(f"  Importée dans Premiere : {card_dir.name}")
+        return True
+    except Exception as exc:
+        log(f"  Import Premiere de {card_dir.name} en échec ({exc}), nouvelle tentative plus tard.")
+        return False

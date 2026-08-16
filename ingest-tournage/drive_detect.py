@@ -43,3 +43,17 @@ def list_candidate_drives(include_fixed: bool = False) -> list[Path]:
         if dtype == DRIVE_REMOVABLE or (include_fixed and dtype == DRIVE_FIXED):
             drives.append(Path(f"{letter}:\\"))
     return drives
+
+
+def get_volume_serial(drive: Path) -> str:
+    """Identifiant unique du volume (change au formatage, pas au contenu) :
+    sert à reconnaître une carte déjà traitée sans dépendre de la lettre de
+    lecteur, qui peut changer d'un branchement à l'autre."""
+    root = f"{str(drive)[0]}:\\"
+    serial = ctypes.c_uint32(0)
+    ok = ctypes.windll.kernel32.GetVolumeInformationW(
+        ctypes.c_wchar_p(root), None, 0, ctypes.byref(serial), None, None, None, 0
+    )
+    if not ok:
+        raise OSError(f"Volume illisible ou pas encore prêt : {root}")
+    return str(serial.value)
