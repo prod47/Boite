@@ -24,6 +24,10 @@ def log(msg: str) -> None:
 def load_config(path: Path) -> dict:
     if path.exists():
         return json.loads(path.read_text(encoding="utf-8"))
+    log(
+        f"Pas de {path.name} trouvé : copie config.example.json en config.json "
+        "et adapte-le à ta config (voir README). Utilisation des réglages par défaut en attendant."
+    )
     return {}
 
 

@@ -22,6 +22,16 @@ carte comme bin.
 
 ### 2. Configurer `config.json`
 
+Copie `config.example.json` en `config.json` (ce dernier n'est jamais
+envoyé sur GitHub, voir section "Confidentialité" plus bas — c'est fait
+exprès pour que tu puisses y mettre tes vrais chemins sans problème) :
+
+```
+copy config.example.json config.json
+```
+
+Puis édite `config.json` :
+
 - `base_folder` : le dossier où seront créés les dossiers `RUSHES_...`
 - `premiere.premiere_exe` : le chemin exact vers `Adobe Premiere Pro.exe`
   chez toi
@@ -87,6 +97,27 @@ Si `pymiere`/Pymiere Link ne répondent toujours pas après 3 minutes d'attente
 - affiche l'unique action manuelle qu'il reste : dans Premiere,
   `Fichier > Scripts > Exécuter le fichier de script...`, puis sélectionner
   ce fichier `.jsx`.
+
+## Confidentialité
+
+- **Ce script tourne entièrement en local sur ton PC.** Il copie des
+  fichiers d'un disque à un autre et parle à Premiere Pro via une connexion
+  locale (`localhost`, pas internet). Aucune vidéo, aucun rush, aucun
+  fichier de tournage n'est jamais envoyé où que ce soit — ce ne sont que
+  des opérations disque et une automatisation d'un logiciel installé chez
+  toi.
+- **Ce dossier de code, lui, est hébergé sur GitHub — et ce dépôt
+  (`prod47/Boite`) est public.** N'importe qui peut donc lire le code
+  source de ce script (`ingest.py`, etc.), mais pas tes vidéos ni ton
+  dossier `Tournages` sur ton PC : ce sont deux choses complètement
+  séparées. Si tu préfères que même le code ne soit pas visible
+  publiquement, tu peux passer le dépôt en privé depuis GitHub :
+  `Settings > General > Danger Zone > Change visibility`.
+- `config.json` (tes vrais chemins, ex. `D:\Tournages`) est volontairement
+  exclu du dépôt (`.gitignore`) : seul `config.example.json`, avec des
+  valeurs génériques, est versionné et donc visible publiquement. Ne mets
+  jamais d'information sensible (nom de client, chemin réel) dans un
+  fichier que tu commits/pushes toi-même dans ce dépôt.
 
 ## Sécurité
 
