@@ -14,7 +14,7 @@ from pathlib import Path
 
 from copy_engine import copy_card
 from drive_detect import list_candidate_drives
-from premiere_import import launch_premiere_fallback, try_pymiere_import
+from premiere_import import import_via_pymiere_with_wait, launch_premiere_fallback
 
 
 def log(msg: str) -> None:
@@ -77,7 +77,7 @@ def main() -> None:
     log("Toutes les cartes ont été copiées." + (f" ({warnings} à vérifier)" if warnings else ""))
 
     premiere_config = config.get("premiere", {})
-    imported = try_pymiere_import(rushes_dir, card_dirs, premiere_config.get("project_template"), log)
+    imported = import_via_pymiere_with_wait(rushes_dir, card_dirs, premiere_config, log)
     if not imported:
         launch_premiere_fallback(rushes_dir, card_dirs, premiere_config.get("premiere_exe"), log)
 

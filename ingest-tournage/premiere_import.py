@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -48,43 +49,50 @@ def build_jsx(rushes_dir: Path, card_dirs: list[Path]) -> Path:
     return jsx_path
 
 
-def try_pymiere_import(
+def import_via_pymiere_with_wait(
     rushes_dir: Path,
     card_dirs: list[Path],
-    project_template: str | None,
+    premiere_config: dict,
     log: Logger,
+    timeout_seconds: int = 180,
 ) -> bool:
-    """Tente l'automatisation complète via pymiere (nécessite l'extension
-    "Pymiere Link" installée dans Premiere Pro et Premiere Pro déjà ouvert)."""
+    """Automatisation complète en un seul clic de départ : lance Premiere Pro
+    si besoin, attend qu'il soit prêt (jusqu'à `timeout_seconds`), puis crée
+    le projet et importe toutes les cartes. Nécessite `pymiere` installé et
+    l'extension Pymiere Link ouverte dans Premiere (voir README)."""
     try:
-        import pymiere
+        import pymiere  # noqa: F401  (juste pour vérifier que le paquet est installé)
     except ImportError:
+        log("pymiere n'est pas installé (pip install -r requirements.txt) : import Premiere automatique désactivé.")
         return False
 
-    try:
-        app = pymiere.objects.app
-        project_path = rushes_dir / f"{rushes_dir.name}.prproj"
+    ensure_premiere_running(premiere_config.get("premiere_exe"), log)
 
-        if project_template and Path(project_template).exists():
-            app.openDocument(str(project_template))
-            app.project.saveAs(str(project_path))
-        else:
-            app.newProject(str(project_path))
+    log(f"Attente que Premiere Pro (+ panneau Pymiere Link) soit prêt (jusqu'à {timeout_seconds}s)...")
+    deadline = time.time() + timeout_seconds
+    app = None
+    while time.time() < deadline:
+        app = pymiere_app_or_none()
+        if app is not None:
+            break
+        time.sleep(3)
 
-        proj = app.project
-        for card_dir in card_dirs:
-            bin_ = proj.rootItem.createBin(card_dir.name)
-            files = _collect_files(card_dir)
-            if files:
-                proj.importFiles(files, True, bin_, False)
-        proj.save()
-
-        log(f"Projet Premiere créé et rushes importés automatiquement : {project_path}")
-        return True
-    except Exception as exc:  # pymiere/Premiere non disponibles ou en erreur
-        log(f"pymiere était disponible mais l'automatisation a échoué ({exc}).")
-        log("Bascule sur le mode 'script à lancer en un clic dans Premiere'.")
+    if app is None:
+        log(f"Premiere Pro n'a pas répondu après {timeout_seconds}s.")
+        log("Vérifie que le panneau Fenêtre > Extensions > Pymiere Link est bien ouvert dans Premiere.")
         return False
+
+    if not open_or_create_project(app, rushes_dir, premiere_config.get("project_template"), log):
+        return False
+
+    ok = True
+    for card_dir in card_dirs:
+        if not import_card(app, card_dir, log):
+            ok = False
+
+    if ok:
+        log("Tous les rushes ont été importés automatiquement dans Premiere Pro.")
+    return ok
 
 
 def launch_premiere_fallback(
@@ -96,16 +104,14 @@ def launch_premiere_fallback(
     jsx_path = build_jsx(rushes_dir, card_dirs)
     log(f"Script d'import généré : {jsx_path}")
 
-    if premiere_exe and Path(premiere_exe).exists():
-        subprocess.Popen([premiere_exe])
-        log("Lancement de Premiere Pro...")
+    ensure_premiere_running(premiere_exe, log)
 
     log("Dans Premiere Pro : ouvre ou crée ton projet, puis va dans")
     log("  Fichier > Scripts > Exécuter le fichier de script...")
     log(f"et sélectionne : {jsx_path}")
 
 
-# --- Fonctions utilisées par watcher.py (mode surveillance / zéro clic) ----
+# --- Fonctions communes (utilisées par ingest.py et watcher.py) -----------
 
 
 def is_premiere_running(exe_name: str) -> bool:
