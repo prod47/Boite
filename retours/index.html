@@ -1,0 +1,978 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Retours</title>
+<meta name="description" content="Suivi des retours et remboursements de vêtements avant expiration du délai.">
+<meta name="theme-color" content="#0f0f1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Retours">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.png">
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --bg-elevated: #191926;
+    --card: #1e1e2e;
+    --border: #2c2c3d;
+    --text: #f2f2f7;
+    --text-dim: #9797ab;
+    --accent: #6366f1;
+    --accent-2: #9333ea;
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --gray: #6b7280;
+    font-size: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  button { font-family: inherit; }
+  input, select { font-family: inherit; }
+  .hidden { display: none !important; }
+  .screen { min-height: 100%; display: flex; flex-direction: column; }
+
+  /* ---------- Generic building blocks ---------- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px 12px;
+  }
+  .topbar h1 { font-size: 1.4rem; margin: 0; letter-spacing: -0.02em; }
+  .icon-btn {
+    background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; cursor: pointer;
+  }
+  .icon-btn:active { opacity: 0.7; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 0.82rem; color: var(--text-dim); margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; background: var(--bg-elevated); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 12px 14px; font-size: 1rem;
+  }
+  .field input:focus, .field select:focus { outline: 2px solid var(--accent); }
+
+  .btn-primary {
+    width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white; border: none; border-radius: 12px; padding: 14px; font-size: 1rem;
+    font-weight: 600; cursor: pointer;
+  }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.5; }
+  .btn-secondary {
+    width: 100%; background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 12px; padding: 12px; font-size: 0.95rem;
+    cursor: pointer; margin-top: 10px;
+  }
+  .error-msg { color: var(--red); font-size: 0.85rem; margin-top: -6px; margin-bottom: 14px; min-height: 1em; }
+
+  /* ---------- Auth screens ---------- */
+  .auth-wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px 24px; max-width: 420px; margin: 0 auto; width: 100%; }
+  .auth-logo { text-align: center; margin-bottom: 28px; }
+  .auth-logo .emoji { font-size: 3rem; }
+  .auth-logo h2 { margin: 8px 0 4px; font-size: 1.5rem; }
+  .auth-logo p { color: var(--text-dim); font-size: 0.9rem; margin: 0; }
+  .auth-switch { text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--text-dim); }
+  .auth-switch a { color: var(--accent); text-decoration: none; }
+
+  /* ---------- Dashboard ---------- */
+  .tabs { display: flex; gap: 8px; padding: 0 20px 14px; }
+  .tab {
+    flex: 1; text-align: center; padding: 9px; border-radius: 10px; font-size: 0.88rem;
+    background: var(--bg-elevated); color: var(--text-dim); border: 1px solid var(--border); cursor: pointer;
+  }
+  .tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  .banner {
+    margin: 0 20px 14px; padding: 12px 14px; border-radius: 12px; font-size: 0.86rem;
+    background: rgba(245, 158, 11, 0.12); border: 1px solid rgba(245, 158, 11, 0.4); color: #fbbf24;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .banner button { background: none; border: none; color: inherit; font-size: 0.8rem; text-decoration: underline; cursor: pointer; padding: 0; }
+
+  .list { flex: 1; padding: 0 20px 100px; overflow-y: auto; }
+  .empty-state { text-align: center; color: var(--text-dim); margin-top: 60px; padding: 0 20px; }
+  .empty-state .emoji { font-size: 2.6rem; display: block; margin-bottom: 10px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 16px; margin-bottom: 14px;
+  }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .card-head .store { font-weight: 600; font-size: 1.02rem; }
+  .card-head .owner { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
+  .badge { font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+  .badge.green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge.orange { background: rgba(245,158,11,0.15); color: var(--orange); }
+  .badge.red { background: rgba(239,68,68,0.15); color: var(--red); }
+  .badge.gray { background: rgba(107,114,128,0.18); color: var(--gray); }
+
+  .card .dates { font-size: 0.78rem; color: var(--text-dim); margin: 6px 0 12px; }
+
+  .item-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 0;
+    border-top: 1px solid var(--border);
+  }
+  .item-row .icon { font-size: 1.3rem; width: 28px; text-align: center; }
+  .item-row .name { flex: 1; font-size: 0.92rem; }
+  .item-row.refunded .name { text-decoration: line-through; color: var(--text-dim); }
+  .item-toggle {
+    font-size: 0.72rem; border-radius: 8px; padding: 6px 9px; border: 1px solid var(--border);
+    background: var(--bg-elevated); color: var(--text-dim); cursor: pointer; white-space: nowrap;
+  }
+  .item-row.refunded .item-toggle { color: var(--green); border-color: rgba(34,197,94,0.4); }
+
+  .card-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .card-actions button {
+    flex: 1; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 10px; padding: 9px; font-size: 0.78rem; cursor: pointer;
+  }
+  .card-actions button.danger { color: var(--red); }
+
+  .fab {
+    position: fixed; right: 20px; bottom: calc(24px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; border-radius: 50%; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white;
+    font-size: 1.7rem; box-shadow: 0 8px 20px rgba(99,102,241,0.45); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ---------- Add / edit purchase ---------- */
+  .add-body { flex: 1; overflow-y: auto; padding: 4px 20px 40px; }
+  .photo-picker {
+    border: 2px dashed var(--border); border-radius: 16px; padding: 24px; text-align: center;
+    color: var(--text-dim); cursor: pointer; margin-bottom: 18px; position: relative; overflow: hidden;
+  }
+  .photo-picker img { width: 100%; border-radius: 10px; display: block; }
+  .photo-picker .placeholder .emoji { font-size: 2.2rem; display: block; margin-bottom: 8px; }
+  .photo-picker input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+  .ocr-status {
+    display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--accent);
+    margin: -8px 0 18px;
+  }
+  .spinner {
+    width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border);
+    border-top-color: var(--accent); animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .article-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+  .article-row select, .article-row input {
+    background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 10px 12px; font-size: 0.95rem;
+  }
+  .article-row select { width: 84px; flex-shrink: 0; }
+  .article-row input { flex: 1; min-width: 0; }
+  .article-row button {
+    flex-shrink: 0; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--red);
+    border-radius: 10px; width: 42px; height: 42px; font-size: 1rem; cursor: pointer;
+  }
+  .add-article-btn {
+    background: none; border: 1px dashed var(--border); color: var(--accent);
+    border-radius: 10px; padding: 10px; width: 100%; font-size: 0.88rem; cursor: pointer; margin-bottom: 20px;
+  }
+
+  /* ---------- Lightbox ---------- */
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 50;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .lightbox img { max-width: 100%; max-height: 85vh; border-radius: 10px; }
+  .lightbox .close-lightbox {
+    position: absolute; top: calc(16px + env(safe-area-inset-top)); right: 16px;
+    background: rgba(255,255,255,0.15); border: none; color: white; width: 38px; height: 38px;
+    border-radius: 50%; font-size: 1.1rem; cursor: pointer;
+  }
+
+  .section-title { font-size: 0.82rem; color: var(--text-dim); margin: 4px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+
+<!-- ============ SETUP (first run: create the two profiles) ============ -->
+<div id="screen-setup" class="screen hidden">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <span class="emoji">🏷️</span>
+      <h2>Bienvenue</h2>
+      <p>Créez les deux profils qui utiliseront l'application.</p>
+    </div>
+    <form id="setup-form">
+      <div class="section-title">Profil 1</div>
+      <div class="field"><label>Prénom</label><input required id="s1-name" type="text" autocomplete="off"></div>
+      <div class="field"><label>Email</label><input required id="s1-email" type="email" autocomplete="off"></div>
+      <div class="field"><label>Mot de passe</label><input required id="s1-pass" type="password" minlength="4"></div>
+      <div class="section-title">Profil 2</div>
+      <div class="field"><label>Prénom</label><input required id="s2-name" type="text" autocomplete="off"></div>
+      <div class="field"><label>Email</label><input required id="s2-email" type="email" autocomplete="off"></div>
+      <div class="field"><label>Mot de passe</label><input required id="s2-pass" type="password" minlength="4"></div>
+      <div class="error-msg" id="setup-error"></div>
+      <button class="btn-primary" type="submit">Créer les profils</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ LOGIN ============ -->
+<div id="screen-login" class="screen hidden">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <span class="emoji">🏷️</span>
+      <h2>Retours</h2>
+      <p>Ne ratez plus un remboursement.</p>
+    </div>
+    <form id="login-form">
+      <div class="field"><label>Email</label><input required id="login-email" type="email" autocomplete="username"></div>
+      <div class="field"><label>Mot de passe</label><input required id="login-pass" type="password" autocomplete="current-password"></div>
+      <div class="error-msg" id="login-error"></div>
+      <button class="btn-primary" type="submit">Se connecter</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="screen-app" class="screen hidden">
+  <div class="topbar">
+    <h1>👖 Retours</h1>
+    <div style="display:flex; gap:8px;">
+      <button class="icon-btn" id="btn-notif">🔔</button>
+      <button class="icon-btn" id="btn-logout">Salut, <span id="current-user-name"></span> ↩︎</button>
+    </div>
+  </div>
+
+  <div id="notif-banner" class="banner hidden">
+    <span>🔔 Active les alertes pour être prévenu·e à J-7 et J-2.</span>
+    <button id="btn-enable-notif">Activer</button>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="active">À traiter</div>
+    <div class="tab" data-tab="done">Terminés</div>
+  </div>
+
+  <div id="due-banner" class="banner hidden"></div>
+
+  <div class="list" id="list"></div>
+
+  <button class="fab" id="btn-add">＋</button>
+</div>
+
+<!-- ============ ADD / EDIT PURCHASE ============ -->
+<div id="screen-add" class="screen hidden">
+  <div class="topbar">
+    <button class="icon-btn" id="btn-add-cancel">Annuler</button>
+    <h1 style="font-size:1.1rem;">Nouvel achat</h1>
+    <button class="icon-btn" id="btn-add-save">Enregistrer</button>
+  </div>
+  <div class="add-body">
+    <label class="photo-picker" id="photo-picker">
+      <div class="placeholder" id="photo-placeholder">
+        <span class="emoji">📷</span>
+        Prendre en photo le ticket de caisse
+      </div>
+      <img id="photo-preview" class="hidden">
+      <input type="file" id="photo-input" accept="image/*" capture="environment">
+    </label>
+
+    <div class="ocr-status hidden" id="ocr-status">
+      <span class="spinner"></span>
+      <span id="ocr-status-text">Lecture du ticket…</span>
+    </div>
+
+    <div class="field"><label>Boutique / marque</label><input id="f-store" type="text" placeholder="Zara, Decathlon…"></div>
+    <div class="field"><label>Date d'achat</label><input id="f-date" type="date"></div>
+    <div class="field"><label>Date limite de retour</label><input id="f-deadline" type="date"></div>
+
+    <div class="section-title">Articles</div>
+    <div id="articles"></div>
+    <button type="button" class="add-article-btn" id="btn-add-article">+ Ajouter un article</button>
+  </div>
+</div>
+
+<!-- ============ LIGHTBOX (ticket photo) ============ -->
+<div id="lightbox" class="lightbox hidden">
+  <button class="close-lightbox" id="btn-close-lightbox">✕</button>
+  <img id="lightbox-img" src="">
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ===================== Config ===================== */
+  var RETURN_WINDOW_DAYS = 30;
+  var ALERT_THRESHOLDS = [7, 2]; // days before deadline
+
+  var ICONS = [
+    { key: "tshirt", emoji: "👕", words: ["t-shirt", "tshirt", "tee", "haut"] },
+    { key: "shirt", emoji: "👔", words: ["chemise"] },
+    { key: "sweat", emoji: "🧶", words: ["pull", "sweat", "gilet", "hoodie"] },
+    { key: "pants", emoji: "👖", words: ["pantalon", "jean", "jegging"] },
+    { key: "short", emoji: "🩳", words: ["short", "bermuda"] },
+    { key: "dress", emoji: "👗", words: ["robe"] },
+    { key: "jacket", emoji: "🧥", words: ["veste", "manteau", "blouson", "doudoune", "parka"] },
+    { key: "shoes", emoji: "👟", words: ["chaussure", "basket", "sneaker", "botte", "escarpin"] },
+    { key: "socks", emoji: "🧦", words: ["chaussette"] },
+    { key: "hat", emoji: "🧢", words: ["casquette", "chapeau", "bonnet"] },
+    { key: "bag", emoji: "👜", words: ["sac"] },
+    { key: "scarf", emoji: "🧣", words: ["écharpe", "foulard"] },
+    { key: "swim", emoji: "🩱", words: ["maillot"] },
+    { key: "glasses", emoji: "🕶️", words: ["lunette"] },
+    { key: "other", emoji: "🏷️", words: [] }
+  ];
+
+  var KNOWN_STORES = [
+    "ZARA", "H&M", "HM", "UNIQLO", "DECATHLON", "NIKE", "ADIDAS", "CELIO", "CÉLIO",
+    "GALERIES LAFAYETTE", "PRINTEMPS", "ASOS", "ZALANDO", "MANGO", "BERSHKA",
+    "PULL AND BEAR", "PULL&BEAR", "C&A", "KIABI", "JULES", "SHEIN", "MONOPRIX",
+    "PIMKIE", "PROMOD", "ETAM", "LEVI'S", "LEVIS", "THE KOOPLES", "SANDRO", "MAJE",
+    "SEZANE", "SÉZANE", "COS", "MASSIMO DUTTI", "STRADIVARIUS", "NEW BALANCE",
+    "CONVERSE", "VANS", "PUMA", "LACOSTE", "TIMBERLAND", "EDEN PARK", "GAP",
+    "URBAN OUTFITTERS", "AMERICAN VINTAGE", "IKKS", "BALIBARIS", "CAROLL"
+  ];
+
+  var MONTHS_FR = {
+    "janvier": 1, "février": 2, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5,
+    "juin": 6, "juillet": 7, "août": 8, "aout": 8, "septembre": 9,
+    "octobre": 10, "novembre": 11, "décembre": 12, "decembre": 12
+  };
+
+  /* ===================== Utilities ===================== */
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function todayISO() { return new Date().toISOString().slice(0, 10); }
+  function addDays(iso, n) {
+    var d = new Date(iso + "T00:00:00");
+    d.setDate(d.getDate() + n);
+    return d.toISOString().slice(0, 10);
+  }
+  function daysBetween(fromISO, toISO) {
+    var a = new Date(fromISO + "T00:00:00");
+    var b = new Date(toISO + "T00:00:00");
+    return Math.round((b - a) / 86400000);
+  }
+  function fmtDate(iso) {
+    if (!iso) return "?";
+    var d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  }
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  async function sha256(text) {
+    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
+  }
+  function guessIcon(name) {
+    var n = (name || "").toLowerCase();
+    for (var i = 0; i < ICONS.length; i++) {
+      var def = ICONS[i];
+      for (var j = 0; j < def.words.length; j++) {
+        if (n.indexOf(def.words[j]) !== -1) return def.key;
+      }
+    }
+    return "other";
+  }
+  function emojiFor(key) {
+    var def = ICONS.filter(function (d) { return d.key === key; })[0];
+    return def ? def.emoji : "🏷️";
+  }
+
+  /* ===================== Storage: users (localStorage) ===================== */
+  var Users = {
+    all: function () {
+      try { return JSON.parse(localStorage.getItem("retours_users") || "[]"); }
+      catch (e) { return []; }
+    },
+    save: function (list) { localStorage.setItem("retours_users", JSON.stringify(list)); },
+    findByEmail: function (email) {
+      email = (email || "").trim().toLowerCase();
+      return this.all().filter(function (u) { return u.email.toLowerCase() === email; })[0];
+    }
+  };
+
+  /* ===================== Storage: purchases (IndexedDB) ===================== */
+  var DB_NAME = "RetoursDB";
+  var DB_STORE = "purchases";
+  var dbPromise = new Promise(function (resolve, reject) {
+    var req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = function () {
+      var db = req.result;
+      if (!db.objectStoreNames.contains(DB_STORE)) {
+        db.createObjectStore(DB_STORE, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = function () { resolve(req.result); };
+    req.onerror = function () { reject(req.error); };
+  });
+
+  function idbTx(mode) {
+    return dbPromise.then(function (db) { return db.transaction(DB_STORE, mode).objectStore(DB_STORE); });
+  }
+  function idbAll() {
+    return idbTx("readonly").then(function (store) {
+      return new Promise(function (resolve, reject) {
+        var req = store.getAll();
+        req.onsuccess = function () { resolve(req.result || []); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbPut(record) {
+    return idbTx("readwrite").then(function (store) {
+      return new Promise(function (resolve, reject) {
+        var req = store.put(record);
+        req.onsuccess = function () { resolve(); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function idbDelete(id) {
+    return idbTx("readwrite").then(function (store) {
+      return new Promise(function (resolve, reject) {
+        var req = store.delete(id);
+        req.onsuccess = function () { resolve(); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+
+  /* ===================== Session ===================== */
+  function getSessionUserId() { return localStorage.getItem("retours_session"); }
+  function setSessionUserId(id) {
+    if (id) localStorage.setItem("retours_session", id);
+    else localStorage.removeItem("retours_session");
+  }
+
+  /* ===================== Screens ===================== */
+  var screens = ["screen-setup", "screen-login", "screen-app", "screen-add"];
+  function showScreen(id) {
+    screens.forEach(function (s) {
+      document.getElementById(s).classList.toggle("hidden", s !== id);
+    });
+  }
+
+  var currentUser = null;
+  var currentTab = "active";
+  var purchasesCache = [];
+  var photoDataUrl = null;
+  var editingId = null;
+
+  /* ===================== Boot ===================== */
+  async function boot() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+    var users = Users.all();
+    if (users.length === 0) {
+      showScreen("screen-setup");
+      return;
+    }
+    var sessionId = getSessionUserId();
+    var sessionUser = sessionId ? users.filter(function (u) { return u.id === sessionId; })[0] : null;
+    if (sessionUser) {
+      currentUser = sessionUser;
+      await enterApp();
+    } else {
+      showScreen("screen-login");
+    }
+  }
+
+  /* ===================== Setup form ===================== */
+  document.getElementById("setup-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var errEl = document.getElementById("setup-error");
+    errEl.textContent = "";
+    var p1 = {
+      name: document.getElementById("s1-name").value.trim(),
+      email: document.getElementById("s1-email").value.trim(),
+      pass: document.getElementById("s1-pass").value
+    };
+    var p2 = {
+      name: document.getElementById("s2-name").value.trim(),
+      email: document.getElementById("s2-email").value.trim(),
+      pass: document.getElementById("s2-pass").value
+    };
+    if (p1.email.toLowerCase() === p2.email.toLowerCase()) {
+      errEl.textContent = "Les deux profils doivent avoir des emails différents.";
+      return;
+    }
+    var users = [
+      { id: uid(), name: p1.name, email: p1.email, passwordHash: await sha256(p1.pass) },
+      { id: uid(), name: p2.name, email: p2.email, passwordHash: await sha256(p2.pass) }
+    ];
+    Users.save(users);
+    currentUser = users[0];
+    setSessionUserId(users[0].id);
+    await enterApp();
+  });
+
+  /* ===================== Login form ===================== */
+  document.getElementById("login-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var errEl = document.getElementById("login-error");
+    errEl.textContent = "";
+    var email = document.getElementById("login-email").value.trim();
+    var pass = document.getElementById("login-pass").value;
+    var user = Users.findByEmail(email);
+    if (!user) { errEl.textContent = "Aucun compte avec cet email."; return; }
+    var hash = await sha256(pass);
+    if (hash !== user.passwordHash) { errEl.textContent = "Mot de passe incorrect."; return; }
+    currentUser = user;
+    setSessionUserId(user.id);
+    document.getElementById("login-form").reset();
+    await enterApp();
+  });
+
+  document.getElementById("btn-logout").addEventListener("click", function () {
+    setSessionUserId(null);
+    currentUser = null;
+    showScreen("screen-login");
+  });
+
+  /* ===================== Dashboard ===================== */
+  async function enterApp() {
+    document.getElementById("current-user-name").textContent = currentUser.name;
+    showScreen("screen-app");
+    updateNotifBanner();
+    await refreshList();
+    runReminderCheck();
+  }
+
+  document.querySelectorAll(".tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
+      tab.classList.add("active");
+      currentTab = tab.getAttribute("data-tab");
+      renderList();
+    });
+  });
+
+  function purchaseIsActive(p) {
+    return p.items.some(function (it) { return !it.refunded; });
+  }
+  function purchaseMinDaysLeft(p) {
+    var active = p.items.filter(function (it) { return !it.refunded; });
+    if (active.length === 0) return null;
+    return daysBetween(todayISO(), p.deadline);
+  }
+  function statusClass(daysLeft) {
+    if (daysLeft === null) return "gray";
+    if (daysLeft <= 2) return "red";
+    if (daysLeft <= 7) return "orange";
+    return "green";
+  }
+  function statusLabel(daysLeft) {
+    if (daysLeft === null) return "Terminé";
+    if (daysLeft < 0) return "Expiré";
+    if (daysLeft === 0) return "Dernier jour";
+    return daysLeft + " j restants";
+  }
+
+  async function refreshList() {
+    purchasesCache = await idbAll();
+    purchasesCache.sort(function (a, b) { return a.deadline < b.deadline ? -1 : 1; });
+    renderList();
+  }
+
+  function renderList() {
+    var list = document.getElementById("list");
+    var filtered = purchasesCache.filter(function (p) {
+      return currentTab === "active" ? purchaseIsActive(p) : !purchaseIsActive(p);
+    });
+
+    if (filtered.length === 0) {
+      list.innerHTML =
+        '<div class="empty-state"><span class="emoji">' +
+        (currentTab === "active" ? "🧺" : "✅") +
+        '</span>' +
+        (currentTab === "active"
+          ? "Aucun retour en cours.<br>Ajoute un achat avec le bouton ＋."
+          : "Aucun retour terminé pour l'instant.") +
+        "</div>";
+      return;
+    }
+
+    list.innerHTML = filtered.map(renderCard).join("");
+
+    // wire up events
+    list.querySelectorAll("[data-toggle-item]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        toggleItemRefunded(btn.getAttribute("data-purchase"), btn.getAttribute("data-toggle-item"));
+      });
+    });
+    list.querySelectorAll("[data-action='photo']").forEach(function (btn) {
+      btn.addEventListener("click", function () { openLightbox(btn.getAttribute("data-purchase")); });
+    });
+    list.querySelectorAll("[data-action='delete']").forEach(function (btn) {
+      btn.addEventListener("click", function () { deletePurchase(btn.getAttribute("data-purchase")); });
+    });
+  }
+
+  function renderCard(p) {
+    var daysLeft = purchaseMinDaysLeft(p);
+    var cls = statusClass(daysLeft);
+    var label = statusLabel(daysLeft);
+    var itemsHtml = p.items.map(function (it) {
+      return (
+        '<div class="item-row ' + (it.refunded ? "refunded" : "") + '">' +
+        '<span class="icon">' + emojiFor(it.icon) + "</span>" +
+        '<span class="name">' + escapeHtml(it.name) + "</span>" +
+        '<button class="item-toggle" data-purchase="' + p.id + '" data-toggle-item="' + it.id + '">' +
+        (it.refunded ? "↩️ Réactiver" : "✅ Remboursé") +
+        "</button>" +
+        "</div>"
+      );
+    }).join("");
+
+    return (
+      '<div class="card">' +
+      '<div class="card-head">' +
+      '<div><div class="store">' + escapeHtml(p.store || "Boutique inconnue") + '</div>' +
+      '<div class="owner">' + escapeHtml(ownerName(p.userId)) + "</div></div>" +
+      '<span class="badge ' + cls + '">' + label + "</span>" +
+      "</div>" +
+      '<div class="dates">Acheté le ' + fmtDate(p.purchaseDate) + " · Retour avant le " + fmtDate(p.deadline) + "</div>" +
+      itemsHtml +
+      '<div class="card-actions">' +
+      (p.photo ? '<button data-action="photo" data-purchase="' + p.id + '">🧾 Ticket</button>' : "") +
+      '<button class="danger" data-action="delete" data-purchase="' + p.id + '">🗑️ Supprimer</button>' +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  function ownerName(userId) {
+    var u = Users.all().filter(function (u) { return u.id === userId; })[0];
+    return u ? u.name : "";
+  }
+
+  async function toggleItemRefunded(purchaseId, itemId) {
+    var p = purchasesCache.filter(function (p) { return p.id === purchaseId; })[0];
+    if (!p) return;
+    var item = p.items.filter(function (it) { return it.id === itemId; })[0];
+    if (!item) return;
+    item.refunded = !item.refunded;
+    item.refundedAt = item.refunded ? todayISO() : null;
+    await idbPut(p);
+    await refreshList();
+  }
+
+  async function deletePurchase(purchaseId) {
+    if (!confirm("Supprimer cet achat et tous ses articles ?")) return;
+    await idbDelete(purchaseId);
+    await refreshList();
+  }
+
+  function openLightbox(purchaseId) {
+    var p = purchasesCache.filter(function (p) { return p.id === purchaseId; })[0];
+    if (!p || !p.photo) return;
+    document.getElementById("lightbox-img").src = p.photo;
+    document.getElementById("lightbox").classList.remove("hidden");
+  }
+  document.getElementById("btn-close-lightbox").addEventListener("click", function () {
+    document.getElementById("lightbox").classList.add("hidden");
+  });
+
+  /* ===================== Reminders / notifications ===================== */
+  function updateNotifBanner() {
+    var banner = document.getElementById("notif-banner");
+    banner.classList.toggle("hidden", !("Notification" in window) || Notification.permission !== "default");
+  }
+  document.getElementById("btn-notif").addEventListener("click", requestNotifPermission);
+  document.getElementById("btn-enable-notif").addEventListener("click", requestNotifPermission);
+  async function requestNotifPermission() {
+    if (!("Notification" in window)) { alert("Les notifications ne sont pas prises en charge sur cet appareil."); return; }
+    await Notification.requestPermission();
+    updateNotifBanner();
+    runReminderCheck();
+  }
+
+  async function notify(title, body) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+        var reg = await navigator.serviceWorker.ready;
+        reg.showNotification(title, { body: body, icon: "icon-192.png", badge: "icon-192.png" });
+      } else {
+        new Notification(title, { body: body, icon: "icon-192.png" });
+      }
+    } catch (e) { /* notifications best-effort */ }
+  }
+
+  async function runReminderCheck() {
+    var all = await idbAll();
+    var today = todayISO();
+    var dueSoon = [];
+    var changed = false;
+
+    for (var i = 0; i < all.length; i++) {
+      var p = all[i];
+      if (!purchaseIsActive(p)) continue;
+      var daysLeft = daysBetween(today, p.deadline);
+      p.alerts = p.alerts || {};
+
+      ALERT_THRESHOLDS.forEach(function (threshold) {
+        var key = "d" + threshold;
+        if (daysLeft <= threshold && daysLeft >= 0 && !p.alerts[key]) {
+          notify("⏰ Retour à faire bientôt", (p.store || "Un achat") + " — il reste " + daysLeft + " jour(s) pour le retourner.");
+          p.alerts[key] = true;
+          changed = true;
+        }
+      });
+
+      if (daysLeft <= 7) dueSoon.push(p);
+      if (changed) await idbPut(p);
+    }
+
+    // App-icon badge (iOS 16.4+ standalone PWA) + in-app banner as a reliable fallback.
+    if ("setAppBadge" in navigator) {
+      if (dueSoon.length > 0) navigator.setAppBadge(dueSoon.length).catch(function () {});
+      else if ("clearAppBadge" in navigator) navigator.clearAppBadge().catch(function () {});
+    }
+
+    var dueBanner = document.getElementById("due-banner");
+    if (dueSoon.length > 0) {
+      dueBanner.classList.remove("hidden");
+      dueBanner.innerHTML = "<span>⚠️ " + dueSoon.length + " article(s) arrivent à échéance sous 7 jours.</span>";
+    } else {
+      dueBanner.classList.add("hidden");
+    }
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && currentUser) runReminderCheck();
+  });
+
+  /* ===================== Add purchase flow ===================== */
+  var articleRowsEl = document.getElementById("articles");
+
+  document.getElementById("btn-add").addEventListener("click", function () { openAddScreen(); });
+  document.getElementById("btn-add-cancel").addEventListener("click", function () { showScreen("screen-app"); });
+
+  function openAddScreen() {
+    editingId = null;
+    photoDataUrl = null;
+    document.getElementById("photo-preview").classList.add("hidden");
+    document.getElementById("photo-placeholder").classList.remove("hidden");
+    document.getElementById("photo-input").value = "";
+    document.getElementById("f-store").value = "";
+    document.getElementById("f-date").value = todayISO();
+    document.getElementById("f-deadline").value = addDays(todayISO(), RETURN_WINDOW_DAYS);
+    articleRowsEl.innerHTML = "";
+    addArticleRow();
+    document.getElementById("ocr-status").classList.add("hidden");
+    showScreen("screen-add");
+  }
+
+  function addArticleRow(name, iconKey) {
+    var row = document.createElement("div");
+    row.className = "article-row";
+    var iconOptions = ICONS.map(function (d) {
+      return '<option value="' + d.key + '"' + (d.key === (iconKey || guessIcon(name)) ? " selected" : "") + ">" + d.emoji + "</option>";
+    }).join("");
+    row.innerHTML =
+      '<select class="a-icon">' + iconOptions + "</select>" +
+      '<input class="a-name" type="text" placeholder="Nom de l\'article" value="' + escapeHtml(name || "") + '">' +
+      '<button type="button" class="a-remove">✕</button>';
+    row.querySelector(".a-remove").addEventListener("click", function () { row.remove(); });
+    row.querySelector(".a-name").addEventListener("input", function () {
+      var sel = row.querySelector(".a-icon");
+      if (!sel.dataset.manual) sel.value = guessIcon(row.querySelector(".a-name").value);
+    });
+    row.querySelector(".a-icon").addEventListener("change", function (e) { e.target.dataset.manual = "1"; });
+    articleRowsEl.appendChild(row);
+  }
+  document.getElementById("btn-add-article").addEventListener("click", function () { addArticleRow(); });
+
+  document.getElementById("f-date").addEventListener("change", function () {
+    document.getElementById("f-deadline").value = addDays(this.value, RETURN_WINDOW_DAYS);
+  });
+
+  /* ---- Photo capture + compression ---- */
+  document.getElementById("photo-input").addEventListener("change", async function (e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    photoDataUrl = await compressImage(file);
+    var img = document.getElementById("photo-preview");
+    img.src = photoDataUrl;
+    img.classList.remove("hidden");
+    document.getElementById("photo-placeholder").classList.add("hidden");
+    runOcr(file);
+  });
+
+  function compressImage(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var maxW = 1100;
+          var scale = Math.min(1, maxW / img.width);
+          var canvas = document.createElement("canvas");
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", 0.62));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  /* ---- OCR (Tesseract.js loaded lazily from CDN, French) ---- */
+  var tesseractLoading = null;
+  function loadTesseract() {
+    if (window.Tesseract) return Promise.resolve();
+    if (tesseractLoading) return tesseractLoading;
+    tesseractLoading = new Promise(function (resolve, reject) {
+      var script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+    return tesseractLoading;
+  }
+
+  async function runOcr(file) {
+    var statusEl = document.getElementById("ocr-status");
+    var statusText = document.getElementById("ocr-status-text");
+    statusEl.classList.remove("hidden");
+    statusText.textContent = "Chargement du lecteur…";
+    try {
+      await loadTesseract();
+      statusText.textContent = "Lecture du ticket…";
+      var result = await window.Tesseract.recognize(file, "fra");
+      var text = (result && result.data && result.data.text) || "";
+      applyOcrGuess(text);
+      statusText.textContent = "Ticket lu — vérifie les champs ci-dessous.";
+      setTimeout(function () { statusEl.classList.add("hidden"); }, 2500);
+    } catch (err) {
+      statusText.textContent = "Lecture automatique indisponible — remplis les champs à la main.";
+      setTimeout(function () { statusEl.classList.add("hidden"); }, 3000);
+    }
+  }
+
+  function applyOcrGuess(text) {
+    var guess = parseReceiptText(text);
+    if (guess.date) {
+      document.getElementById("f-date").value = guess.date;
+      document.getElementById("f-deadline").value = addDays(guess.date, RETURN_WINDOW_DAYS);
+    }
+    if (guess.store && !document.getElementById("f-store").value) {
+      document.getElementById("f-store").value = guess.store;
+    }
+  }
+
+  function parseReceiptText(text) {
+    var result = { date: null, store: "" };
+    var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+
+    // --- Date: numeric formats dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy ---
+    var candidates = [];
+    var numRe = /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/g;
+    var m;
+    while ((m = numRe.exec(text)) !== null) {
+      var d = parseInt(m[1], 10), mo = parseInt(m[2], 10), y = parseInt(m[3], 10);
+      if (y < 100) y += 2000;
+      if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2015 && y <= 2100) {
+        candidates.push({ y: y, m: mo, d: d });
+      }
+    }
+    // --- Date: "12 janvier 2026" textual format ---
+    var textRe = /\b(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)\s+(\d{4})\b/gi;
+    while ((m = textRe.exec(text)) !== null) {
+      var monthName = m[2].toLowerCase().replace("û", "u").replace("é", "e");
+      var monthNum = MONTHS_FR[monthName] || MONTHS_FR[m[2].toLowerCase()];
+      if (monthNum) candidates.push({ y: parseInt(m[3], 10), m: monthNum, d: parseInt(m[1], 10) });
+    }
+
+    if (candidates.length > 0) {
+      var todayD = new Date();
+      var valid = candidates.filter(function (c) {
+        var dt = new Date(c.y, c.m - 1, c.d);
+        return dt <= todayD;
+      });
+      var chosen = (valid[0] || candidates[0]);
+      var iso = chosen.y + "-" + String(chosen.m).padStart(2, "0") + "-" + String(chosen.d).padStart(2, "0");
+      result.date = iso;
+    }
+
+    // --- Store name ---
+    var upperText = text.toUpperCase();
+    for (var i = 0; i < KNOWN_STORES.length; i++) {
+      if (upperText.indexOf(KNOWN_STORES[i]) !== -1) { result.store = titleCase(KNOWN_STORES[i]); break; }
+    }
+    if (!result.store) {
+      var firstLine = lines.filter(function (l) { return l.replace(/[^a-zA-Z]/g, "").length >= 3; })[0];
+      if (firstLine) result.store = titleCase(firstLine.slice(0, 40));
+    }
+    return result;
+  }
+
+  function titleCase(s) {
+    return s.toLowerCase().replace(/(^|\s|&)([a-zàâäéèêëïîôöùûüç])/g, function (m2, sep, ch) { return sep + ch.toUpperCase(); });
+  }
+
+  /* ---- Save purchase ---- */
+  document.getElementById("btn-add-save").addEventListener("click", async function () {
+    var store = document.getElementById("f-store").value.trim();
+    var purchaseDate = document.getElementById("f-date").value;
+    var deadline = document.getElementById("f-deadline").value;
+    if (!purchaseDate || !deadline) { alert("Merci de renseigner les dates."); return; }
+
+    var rows = Array.from(articleRowsEl.querySelectorAll(".article-row"));
+    var items = rows.map(function (row) {
+      var name = row.querySelector(".a-name").value.trim();
+      var icon = row.querySelector(".a-icon").value;
+      return name ? { id: uid(), name: name, icon: icon, refunded: false, refundedAt: null } : null;
+    }).filter(Boolean);
+
+    if (items.length === 0) { alert("Ajoute au moins un article."); return; }
+
+    var record = {
+      id: editingId || uid(),
+      userId: currentUser.id,
+      store: store,
+      purchaseDate: purchaseDate,
+      deadline: deadline,
+      photo: photoDataUrl,
+      items: items,
+      alerts: {},
+      createdAt: new Date().toISOString()
+    };
+
+    await idbPut(record);
+    showScreen("screen-app");
+    await refreshList();
+
+    if ("Notification" in window && Notification.permission === "default") {
+      updateNotifBanner();
+    }
+    runReminderCheck();
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>
