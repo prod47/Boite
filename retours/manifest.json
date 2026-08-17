@@ -1,7 +1,7 @@
 {
-  "name": "Retours vêtements",
+  "name": "Retours",
   "short_name": "Retours",
-  "description": "Suivi des retours et remboursements de vêtements avant expiration du délai.",
+  "description": "Suivi des retours et remboursements avant expiration du délai.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
