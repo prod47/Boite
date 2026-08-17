@@ -935,6 +935,7 @@
     var untouched = rows.length <= 1 && rows.every(function (row) { return !row.querySelector(".a-name").value.trim(); });
     if (untouched) {
       var articleGuesses = extractArticleGuesses(text);
+      if (articleGuesses.length === 0) articleGuesses = extractGenericItemGuesses(text);
       if (articleGuesses.length > 0) {
         articleRowsEl.innerHTML = "";
         articleGuesses.forEach(function (name) { addArticleRow(name); });
@@ -966,7 +967,7 @@
 
   function cleanArticleLine(line) {
     var s = line;
-    s = s.replace(/^\d{1,3}\s+(?:[xX]\s+)?/, "");  // leading quantity, e.g. "2 x " or "1 "
+    s = s.replace(/^\d{1,3}[.)]?\s+(?:[xX]\s+)?/, "");  // leading quantity/code, e.g. "2 x ", "1 " or "3. "
     s = s.replace(/\b\d{6,}\b/g, " ");           // barcodes / reference numbers
     s = s.replace(/\*{2,}/g, " ");
     for (var i = 0; i < 3; i++) {                // trailing price(s), possibly repeated
@@ -976,6 +977,54 @@
     if (s.replace(/[^a-zA-ZÀ-ÿ]/g, "").length < 3) return null;
     if (s.length > 42) s = s.slice(0, 42).trim();
     return titleCase(s);
+  }
+
+  // Lines that are clearly receipt boilerplate rather than a purchased item's description.
+  var NON_ITEM_WORDS = [
+    "total", "sous-total", "sous total", "tva", "taxe", "montant", "paiement", "carte",
+    "espece", "espèce", "monnaie", "rendu", "ticket", "merci", "bienvenue", "adresse",
+    "siret", "tel", "fax", "www", "http", "garantie", "retour", "echange", "échange",
+    "caisse", "vendeur", "numero", "numéro", "utilisateur", "compteur", "impression",
+    "point de vente", "pos code", "conditions", "consommation", "delivrance", "délivrance",
+    "solde", "devise", "net soumis"
+  ];
+  function looksLikeMetadata(lowerLine) {
+    return NON_ITEM_WORDS.some(function (w) { return lowerLine.indexOf(w) !== -1; });
+  }
+
+  // Fallback when no clothing keyword matched: any receipt lists its items near a price or
+  // a "qty x unit price" breakdown, regardless of what's being sold — use that structure instead.
+  function extractGenericItemGuesses(text) {
+    var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+    var pricePattern = /\d+[.,]\d{2}/;
+    var computeLinePattern = /\d+\s*(pce|pcs)\b/i;
+    var seen = {};
+    var guesses = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var lower = line.toLowerCase();
+      if (looksLikeMetadata(lower)) continue;
+      var candidate = null;
+      if (computeLinePattern.test(line)) {
+        // "N pce x price = total" lines describe the item named just above them.
+        for (var k = i - 1; k >= 0 && k >= i - 2; k--) {
+          var prev = lines[k];
+          if (!prev || looksLikeMetadata(prev.toLowerCase())) continue;
+          candidate = prev;
+          break;
+        }
+      } else if (pricePattern.test(line) && line.replace(/[^a-zA-ZÀ-ÿ]/g, "").length >= 4) {
+        candidate = line;
+      }
+      if (!candidate) continue;
+      var cleaned = cleanArticleLine(candidate);
+      if (!cleaned) continue;
+      var key = cleaned.toLowerCase();
+      if (seen[key]) continue;
+      seen[key] = true;
+      guesses.push(cleaned);
+    }
+    return guesses.slice(0, 6);
   }
 
   function parseReceiptText(text) {
