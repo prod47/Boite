@@ -407,13 +407,16 @@
   }
   function guessIcon(name) {
     var n = (name || "").toLowerCase();
+    var best = null, bestIndex = Infinity;
     for (var i = 0; i < ICONS.length; i++) {
       var def = ICONS[i];
       for (var j = 0; j < def.words.length; j++) {
-        if (n.indexOf(def.words[j]) !== -1) return def.key;
+        var idx = n.indexOf(def.words[j]);
+        // Leftmost keyword wins: garment type is usually named first ("Veste jean brut" is a jacket, not pants).
+        if (idx !== -1 && idx < bestIndex) { bestIndex = idx; best = def.key; }
       }
     }
-    return "other";
+    return best || "other";
   }
   function emojiFor(key) {
     var def = ICONS.filter(function (d) { return d.key === key; })[0];
@@ -925,6 +928,54 @@
     if (guess.store && !document.getElementById("f-store").value) {
       document.getElementById("f-store").value = guess.store;
     }
+
+    // Only replace the article list if it's still the single blank row added by default —
+    // don't clobber anything the user has already typed themselves.
+    var rows = Array.from(articleRowsEl.querySelectorAll(".article-row"));
+    var untouched = rows.length <= 1 && rows.every(function (row) { return !row.querySelector(".a-name").value.trim(); });
+    if (untouched) {
+      var articleGuesses = extractArticleGuesses(text);
+      if (articleGuesses.length > 0) {
+        articleRowsEl.innerHTML = "";
+        articleGuesses.forEach(function (name) { addArticleRow(name); });
+      }
+    }
+  }
+
+  // Scans receipt lines for clothing keywords (same list used to guess icons) and turns
+  // matching lines into candidate article names, stripped of prices/barcodes/quantities.
+  function extractArticleGuesses(text) {
+    var keywords = [];
+    ICONS.forEach(function (def) { keywords = keywords.concat(def.words); });
+    var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
+    var seen = {};
+    var guesses = [];
+    lines.forEach(function (line) {
+      var lower = line.toLowerCase();
+      var hasKeyword = keywords.some(function (w) { return lower.indexOf(w) !== -1; });
+      if (!hasKeyword) return;
+      var cleaned = cleanArticleLine(line);
+      if (!cleaned) return;
+      var key = cleaned.toLowerCase();
+      if (seen[key]) return;
+      seen[key] = true;
+      guesses.push(cleaned);
+    });
+    return guesses.slice(0, 5);
+  }
+
+  function cleanArticleLine(line) {
+    var s = line;
+    s = s.replace(/^\d{1,3}\s+(?:[xX]\s+)?/, "");  // leading quantity, e.g. "2 x " or "1 "
+    s = s.replace(/\b\d{6,}\b/g, " ");           // barcodes / reference numbers
+    s = s.replace(/\*{2,}/g, " ");
+    for (var i = 0; i < 3; i++) {                // trailing price(s), possibly repeated
+      s = s.replace(/\s*\d{1,4}[,.]\d{2}\s*(€|eur)?\s*$/i, "");
+    }
+    s = s.replace(/\s{2,}/g, " ").trim();
+    if (s.replace(/[^a-zA-ZÀ-ÿ]/g, "").length < 3) return null;
+    if (s.length > 42) s = s.slice(0, 42).trim();
+    return titleCase(s);
   }
 
   function parseReceiptText(text) {

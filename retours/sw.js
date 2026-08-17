@@ -1,4 +1,4 @@
-const CACHE = "retours-v3";
+const CACHE = "retours-v4";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png"];
 
 self.addEventListener("install", (event) => {
