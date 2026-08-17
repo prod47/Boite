@@ -164,23 +164,13 @@
 
   /* ---------- Add / edit purchase ---------- */
   .add-body { flex: 1; overflow-y: auto; padding: 4px 20px 40px; }
-  .photo-picker {
-    border: 2px dashed var(--border); border-radius: 16px; padding: 24px; text-align: center;
-    color: var(--text-dim); cursor: pointer; margin-bottom: 18px; position: relative; overflow: hidden;
+  .quick-add textarea {
+    width: 100%; background: var(--bg-elevated); border: 1px solid var(--border);
+    color: var(--text); border-radius: 12px; padding: 14px; font-size: 1.05rem;
+    resize: vertical; font-family: inherit;
   }
-  .photo-picker img { width: 100%; border-radius: 10px; display: block; }
-  .photo-picker .placeholder .emoji { font-size: 2.2rem; display: block; margin-bottom: 8px; }
-  .photo-picker input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-
-  .ocr-status {
-    display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--accent);
-    margin: -8px 0 18px;
-  }
-  .spinner {
-    width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border);
-    border-top-color: var(--accent); animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+  .quick-add textarea:focus { outline: 2px solid var(--accent); }
+  .quick-add .hint { font-size: 0.78rem; color: var(--text-dim); margin: 8px 0 20px; line-height: 1.4; }
 
   .article-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
   .article-row select, .article-row input {
@@ -196,18 +186,6 @@
   .add-article-btn {
     background: none; border: 1px dashed var(--border); color: var(--accent);
     border-radius: 10px; padding: 10px; width: 100%; font-size: 0.88rem; cursor: pointer; margin-bottom: 20px;
-  }
-
-  /* ---------- Lightbox ---------- */
-  .lightbox {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 50;
-    display: flex; align-items: center; justify-content: center; padding: 20px;
-  }
-  .lightbox img { max-width: 100%; max-height: 85vh; border-radius: 10px; }
-  .lightbox .close-lightbox {
-    position: absolute; top: calc(16px + env(safe-area-inset-top)); right: 16px;
-    background: rgba(255,255,255,0.15); border: none; color: white; width: 38px; height: 38px;
-    border-radius: 50%; font-size: 1.1rem; cursor: pointer;
   }
 
   .section-title { font-size: 0.82rem; color: var(--text-dim); margin: 4px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -306,18 +284,10 @@
     <button class="icon-btn" id="btn-add-save">Enregistrer</button>
   </div>
   <div class="add-body">
-    <label class="photo-picker" id="photo-picker">
-      <div class="placeholder" id="photo-placeholder">
-        <span class="emoji">📷</span>
-        Prendre en photo ou importer le ticket de caisse
-      </div>
-      <img id="photo-preview" class="hidden">
-      <input type="file" id="photo-input" accept="image/*">
-    </label>
-
-    <div class="ocr-status hidden" id="ocr-status">
-      <span class="spinner"></span>
-      <span id="ocr-status-text">Lecture du ticket…</span>
+    <div class="field quick-add">
+      <label>Dicte ou tape ton achat</label>
+      <textarea id="quick-add-text" rows="2" placeholder="Zara, 1 tshirt, 2 ceintures"></textarea>
+      <p class="hint">Astuce : appuie sur le micro 🎤 du clavier pour dicter à voix haute — rien n'est enregistré, seul le texte reconnu par ton iPhone arrive ici.</p>
     </div>
 
     <div class="field"><label>Boutique / marque</label><input id="f-store" type="text" placeholder="Zara, Decathlon…"></div>
@@ -330,12 +300,6 @@
   </div>
 </div>
 
-<!-- ============ LIGHTBOX (ticket photo) ============ -->
-<div id="lightbox" class="lightbox hidden">
-  <button class="close-lightbox" id="btn-close-lightbox">✕</button>
-  <img id="lightbox-img" src="">
-</div>
-
 <script>
 (function () {
   "use strict";
@@ -345,46 +309,38 @@
   var ALERT_THRESHOLDS = [7, 2]; // days before deadline
 
   var ICONS = [
-    { key: "tshirt", emoji: "👕", words: ["t-shirt", "tshirt", "tee", "haut"] },
-    { key: "shirt", emoji: "👔", words: ["chemise"] },
-    { key: "sweat", emoji: "🧶", words: ["pull", "sweat", "gilet", "hoodie"] },
-    { key: "pants", emoji: "👖", words: ["pantalon", "jean", "jegging"] },
-    { key: "short", emoji: "🩳", words: ["short", "bermuda"] },
-    { key: "dress", emoji: "👗", words: ["robe"] },
-    { key: "jacket", emoji: "🧥", words: ["veste", "manteau", "blouson", "doudoune", "parka"] },
-    { key: "shoes", emoji: "👟", words: ["chaussure", "basket", "sneaker", "botte", "escarpin"] },
-    { key: "socks", emoji: "🧦", words: ["chaussette"] },
-    { key: "hat", emoji: "🧢", words: ["casquette", "chapeau", "bonnet"] },
-    { key: "bag", emoji: "👜", words: ["sac"] },
-    { key: "scarf", emoji: "🧣", words: ["écharpe", "foulard"] },
-    { key: "swim", emoji: "🩱", words: ["maillot"] },
-    { key: "glasses", emoji: "🕶️", words: ["lunette"] },
-    { key: "jewelry", emoji: "💍", words: ["bague", "collier", "bracelet", "boucle d'oreille", "bijou"] },
-    { key: "electronics", emoji: "🔌", words: ["chargeur", "cable", "câble", "ecouteur", "écouteur", "casque audio", "telephone", "téléphone", "ordinateur", "souris", "clavier", "enceinte", "batterie", "montre connectee", "montre connectée"] },
-    { key: "books", emoji: "📚", words: ["livre", "cahier", "carnet", "agenda", "planner", "stylo"] },
-    { key: "beauty", emoji: "💄", words: ["creme", "crème", "parfum", "maquillage", "rouge a levres", "rouge à lèvres", "vernis", "shampoing"] },
-    { key: "toys", emoji: "🧸", words: ["jouet", "peluche", "puzzle"] },
-    { key: "home", emoji: "🍳", words: ["assiette", "casserole", "poele", "poêle", "coussin", "bougie", "vase", "plaid"] },
-    { key: "sport", emoji: "🏋️", words: ["resistance", "résistance", "haltere", "haltère", "tapis de yoga", "gourde"] },
-    { key: "tools", emoji: "🔧", words: ["outil", "tournevis", "marteau", "perceuse"] },
-    { key: "watch", emoji: "⌚", words: ["montre"] },
+    { key: "tshirt", emoji: "👕", words: ["t-shirt", "tshirt", "tee", "haut", "tee-shirt"] },
+    { key: "shirt", emoji: "👔", words: ["chemise", "dress shirt"] },
+    { key: "sweat", emoji: "🧶", words: ["pull", "sweat", "gilet", "hoodie", "sweater", "cardigan"] },
+    { key: "pants", emoji: "👖", words: ["pantalon", "jean", "jegging", "pants", "jeans", "trousers"] },
+    { key: "short", emoji: "🩳", words: ["short", "bermuda", "shorts"] },
+    { key: "dress", emoji: "👗", words: ["robe", "dress"] },
+    { key: "jacket", emoji: "🧥", words: ["veste", "manteau", "blouson", "doudoune", "parka", "jacket", "coat"] },
+    { key: "shoes", emoji: "👟", words: ["chaussure", "basket", "sneaker", "botte", "escarpin", "shoes", "boots"] },
+    { key: "socks", emoji: "🧦", words: ["chaussette", "socks"] },
+    { key: "hat", emoji: "🧢", words: ["casquette", "chapeau", "bonnet", "hat", "cap"] },
+    { key: "bag", emoji: "👜", words: ["sac", "bag", "purse", "backpack"] },
+    { key: "scarf", emoji: "🧣", words: ["écharpe", "foulard", "scarf"] },
+    { key: "swim", emoji: "🩱", words: ["maillot", "swimsuit", "swimwear"] },
+    { key: "glasses", emoji: "🕶️", words: ["lunette", "glasses", "sunglasses"] },
+    { key: "jewelry", emoji: "💍", words: ["bague", "collier", "bracelet", "boucle d'oreille", "bijou", "ring", "necklace", "jewelry", "earring"] },
+    { key: "electronics", emoji: "🔌", words: ["chargeur", "cable", "câble", "ecouteur", "écouteur", "casque audio", "telephone", "téléphone", "ordinateur", "souris", "clavier", "enceinte", "batterie", "montre connectee", "montre connectée", "charger", "headphones", "earbuds", "phone", "laptop", "mouse", "keyboard", "speaker"] },
+    { key: "books", emoji: "📚", words: ["livre", "cahier", "carnet", "agenda", "planner", "stylo", "book", "notebook", "pen"] },
+    { key: "beauty", emoji: "💄", words: ["creme", "crème", "parfum", "maquillage", "rouge a levres", "rouge à lèvres", "vernis", "shampoing", "cream", "perfume", "makeup", "shampoo"] },
+    { key: "toys", emoji: "🧸", words: ["jouet", "peluche", "puzzle", "toy"] },
+    { key: "home", emoji: "🍳", words: ["assiette", "casserole", "poele", "poêle", "coussin", "bougie", "vase", "plaid", "plate", "candle", "cushion"] },
+    { key: "sport", emoji: "🏋️", words: ["resistance", "résistance", "haltere", "haltère", "tapis de yoga", "gourde", "yoga mat", "water bottle"] },
+    { key: "tools", emoji: "🔧", words: ["outil", "tournevis", "marteau", "perceuse", "tool", "screwdriver", "hammer", "drill"] },
+    { key: "watch", emoji: "⌚", words: ["montre", "watch"] },
     { key: "other", emoji: "🏷️", words: [] }
   ];
 
-  var KNOWN_STORES = [
-    "ZARA", "H&M", "HM", "UNIQLO", "DECATHLON", "NIKE", "ADIDAS", "CELIO", "CÉLIO",
-    "GALERIES LAFAYETTE", "PRINTEMPS", "ASOS", "ZALANDO", "MANGO", "BERSHKA",
-    "PULL AND BEAR", "PULL&BEAR", "C&A", "KIABI", "JULES", "SHEIN", "MONOPRIX",
-    "PIMKIE", "PROMOD", "ETAM", "LEVI'S", "LEVIS", "THE KOOPLES", "SANDRO", "MAJE",
-    "SEZANE", "SÉZANE", "COS", "MASSIMO DUTTI", "STRADIVARIUS", "NEW BALANCE",
-    "CONVERSE", "VANS", "PUMA", "LACOSTE", "TIMBERLAND", "EDEN PARK", "GAP",
-    "URBAN OUTFITTERS", "AMERICAN VINTAGE", "IKKS", "BALIBARIS", "CAROLL"
-  ];
-
-  var MONTHS_FR = {
-    "janvier": 1, "février": 2, "fevrier": 2, "mars": 3, "avril": 4, "mai": 5,
-    "juin": 6, "juillet": 7, "août": 8, "aout": 8, "septembre": 9,
-    "octobre": 10, "novembre": 11, "décembre": 12, "decembre": 12
+  // French + English quantity words for the voice/text quick-add parser below.
+  var NUMBER_WORD_MAP = {
+    "un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5, "six": 6, "sept": 7, "huit": 8, "neuf": 9, "dix": 10,
+    "onze": 11, "douze": 12, "treize": 13, "quatorze": 14, "quinze": 15, "vingt": 20,
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "twenty": 20
   };
 
   /* ===================== Utilities ===================== */
@@ -509,7 +465,6 @@
   var currentUser = null;
   var currentTab = "active";
   var purchasesCache = [];
-  var photoDataUrl = null;
   var editingId = null;
 
   /* ===================== Boot ===================== */
@@ -671,9 +626,6 @@
         toggleItemRefunded(btn.getAttribute("data-purchase"), btn.getAttribute("data-toggle-item"));
       });
     });
-    list.querySelectorAll("[data-action='photo']").forEach(function (btn) {
-      btn.addEventListener("click", function () { openLightbox(btn.getAttribute("data-purchase")); });
-    });
     list.querySelectorAll("[data-action='delete']").forEach(function (btn) {
       btn.addEventListener("click", function () { deletePurchase(btn.getAttribute("data-purchase")); });
     });
@@ -705,7 +657,6 @@
       '<div class="dates">Acheté le ' + fmtDate(p.purchaseDate) + " · Retour avant le " + fmtDate(p.deadline) + "</div>" +
       itemsHtml +
       '<div class="card-actions">' +
-      (p.photo ? '<button data-action="photo" data-purchase="' + p.id + '">🧾 Ticket</button>' : "") +
       '<button class="danger" data-action="delete" data-purchase="' + p.id + '">🗑️ Supprimer</button>' +
       "</div>" +
       "</div>"
@@ -733,16 +684,6 @@
     await idbDelete(purchaseId);
     await refreshList();
   }
-
-  function openLightbox(purchaseId) {
-    var p = purchasesCache.filter(function (p) { return p.id === purchaseId; })[0];
-    if (!p || !p.photo) return;
-    document.getElementById("lightbox-img").src = p.photo;
-    document.getElementById("lightbox").classList.remove("hidden");
-  }
-  document.getElementById("btn-close-lightbox").addEventListener("click", function () {
-    document.getElementById("lightbox").classList.add("hidden");
-  });
 
   /* ===================== Reminders / notifications ===================== */
   function updateNotifBanner() {
@@ -822,16 +763,12 @@
 
   function openAddScreen() {
     editingId = null;
-    photoDataUrl = null;
-    document.getElementById("photo-preview").classList.add("hidden");
-    document.getElementById("photo-placeholder").classList.remove("hidden");
-    document.getElementById("photo-input").value = "";
+    document.getElementById("quick-add-text").value = "";
     document.getElementById("f-store").value = "";
     document.getElementById("f-date").value = todayISO();
     document.getElementById("f-deadline").value = addDays(todayISO(), RETURN_WINDOW_DAYS);
     articleRowsEl.innerHTML = "";
     addArticleRow();
-    document.getElementById("ocr-status").classList.add("hidden");
     showScreen("screen-add");
   }
 
@@ -859,227 +796,59 @@
     document.getElementById("f-deadline").value = addDays(this.value, RETURN_WINDOW_DAYS);
   });
 
-  /* ---- Photo capture + compression ---- */
-  document.getElementById("photo-input").addEventListener("change", async function (e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    photoDataUrl = await compressImage(file);
-    var img = document.getElementById("photo-preview");
-    img.src = photoDataUrl;
-    img.classList.remove("hidden");
-    document.getElementById("photo-placeholder").classList.add("hidden");
-    runOcr(file);
+  /* ---- Quick add: parse a short dictated/typed line like "Zara, 1 tshirt, 2 belts" ---- */
+  var quickAddTimer = null;
+  document.getElementById("quick-add-text").addEventListener("input", function (e) {
+    clearTimeout(quickAddTimer);
+    var val = e.target.value;
+    quickAddTimer = setTimeout(function () { applyQuickAddParse(val); }, 400);
   });
 
-  function compressImage(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onload = function () {
-        var img = new Image();
-        img.onload = function () {
-          var maxW = 1100;
-          var scale = Math.min(1, maxW / img.width);
-          var canvas = document.createElement("canvas");
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          var ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL("image/jpeg", 0.62));
-        };
-        img.onerror = reject;
-        img.src = reader.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  }
+  // Splits "Store, qty item, qty item" (commas optional) into a store name and a list of
+  // {qty, name}. Everything before the first quantity word/digit is taken as the store name;
+  // each quantity token then starts a new item running up to the next quantity token.
+  function parseQuickAdd(text) {
+    var cleaned = (text || "").replace(/,/g, " ").replace(/\s+/g, " ").trim();
+    if (!cleaned) return { store: "", items: [] };
 
-  /* ---- OCR (Tesseract.js loaded lazily from CDN, French) ---- */
-  var tesseractLoading = null;
-  function loadTesseract() {
-    if (window.Tesseract) return Promise.resolve();
-    if (tesseractLoading) return tesseractLoading;
-    tesseractLoading = new Promise(function (resolve, reject) {
-      var script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-    return tesseractLoading;
-  }
-
-  async function runOcr(file) {
-    var statusEl = document.getElementById("ocr-status");
-    var statusText = document.getElementById("ocr-status-text");
-    statusEl.classList.remove("hidden");
-    statusText.textContent = "Chargement du lecteur…";
-    try {
-      await loadTesseract();
-      statusText.textContent = "Lecture du ticket…";
-      var result = await window.Tesseract.recognize(file, "fra");
-      var text = (result && result.data && result.data.text) || "";
-      applyOcrGuess(text);
-      statusText.textContent = "Ticket lu — vérifie les champs ci-dessous.";
-      setTimeout(function () { statusEl.classList.add("hidden"); }, 2500);
-    } catch (err) {
-      statusText.textContent = "Lecture automatique indisponible — remplis les champs à la main.";
-      setTimeout(function () { statusEl.classList.add("hidden"); }, 3000);
-    }
-  }
-
-  function applyOcrGuess(text) {
-    var guess = parseReceiptText(text);
-    if (guess.date) {
-      document.getElementById("f-date").value = guess.date;
-      document.getElementById("f-deadline").value = addDays(guess.date, RETURN_WINDOW_DAYS);
-    }
-    if (guess.store && !document.getElementById("f-store").value) {
-      document.getElementById("f-store").value = guess.store;
-    }
-
-    // Only replace the article list if it's still the single blank row added by default —
-    // don't clobber anything the user has already typed themselves.
-    var rows = Array.from(articleRowsEl.querySelectorAll(".article-row"));
-    var untouched = rows.length <= 1 && rows.every(function (row) { return !row.querySelector(".a-name").value.trim(); });
-    if (untouched) {
-      var articleGuesses = extractArticleGuesses(text);
-      if (articleGuesses.length === 0) articleGuesses = extractGenericItemGuesses(text);
-      if (articleGuesses.length > 0) {
-        articleRowsEl.innerHTML = "";
-        articleGuesses.forEach(function (name) { addArticleRow(name); });
-      }
-    }
-  }
-
-  // Scans receipt lines for clothing keywords (same list used to guess icons) and turns
-  // matching lines into candidate article names, stripped of prices/barcodes/quantities.
-  function extractArticleGuesses(text) {
-    var keywords = [];
-    ICONS.forEach(function (def) { keywords = keywords.concat(def.words); });
-    var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
-    var seen = {};
-    var guesses = [];
-    lines.forEach(function (line) {
-      var lower = line.toLowerCase();
-      var hasKeyword = keywords.some(function (w) { return lower.indexOf(w) !== -1; });
-      if (!hasKeyword) return;
-      var cleaned = cleanArticleLine(line);
-      if (!cleaned) return;
-      var key = cleaned.toLowerCase();
-      if (seen[key]) return;
-      seen[key] = true;
-      guesses.push(cleaned);
-    });
-    return guesses.slice(0, 5);
-  }
-
-  function cleanArticleLine(line) {
-    var s = line;
-    s = s.replace(/^\d{1,3}[.)]?\s+(?:[xX]\s+)?/, "");  // leading quantity/code, e.g. "2 x ", "1 " or "3. "
-    s = s.replace(/\b\d{6,}\b/g, " ");           // barcodes / reference numbers
-    s = s.replace(/\*{2,}/g, " ");
-    for (var i = 0; i < 3; i++) {                // trailing price(s), possibly repeated
-      s = s.replace(/\s*\d{1,4}[,.]\d{2}\s*(€|eur)?\s*$/i, "");
-    }
-    s = s.replace(/\s{2,}/g, " ").trim();
-    if (s.replace(/[^a-zA-ZÀ-ÿ]/g, "").length < 3) return null;
-    if (s.length > 42) s = s.slice(0, 42).trim();
-    return titleCase(s);
-  }
-
-  // Lines that are clearly receipt boilerplate rather than a purchased item's description.
-  var NON_ITEM_WORDS = [
-    "total", "sous-total", "sous total", "tva", "taxe", "montant", "paiement", "carte",
-    "espece", "espèce", "monnaie", "rendu", "ticket", "merci", "bienvenue", "adresse",
-    "siret", "tel", "fax", "www", "http", "garantie", "retour", "echange", "échange",
-    "caisse", "vendeur", "numero", "numéro", "utilisateur", "compteur", "impression",
-    "point de vente", "pos code", "conditions", "consommation", "delivrance", "délivrance",
-    "solde", "devise", "net soumis"
-  ];
-  function looksLikeMetadata(lowerLine) {
-    return NON_ITEM_WORDS.some(function (w) { return lowerLine.indexOf(w) !== -1; });
-  }
-
-  // Fallback when no clothing keyword matched: any receipt lists its items near a price or
-  // a "qty x unit price" breakdown, regardless of what's being sold — use that structure instead.
-  function extractGenericItemGuesses(text) {
-    var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
-    var pricePattern = /\d+[.,]\d{2}/;
-    var computeLinePattern = /\d+\s*(pce|pcs)\b/i;
-    var seen = {};
-    var guesses = [];
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      var lower = line.toLowerCase();
-      if (looksLikeMetadata(lower)) continue;
-      var candidate = null;
-      if (computeLinePattern.test(line)) {
-        // "N pce x price = total" lines describe the item named just above them.
-        for (var k = i - 1; k >= 0 && k >= i - 2; k--) {
-          var prev = lines[k];
-          if (!prev || looksLikeMetadata(prev.toLowerCase())) continue;
-          candidate = prev;
-          break;
-        }
-      } else if (pricePattern.test(line) && line.replace(/[^a-zA-ZÀ-ÿ]/g, "").length >= 4) {
-        candidate = line;
-      }
-      if (!candidate) continue;
-      var cleaned = cleanArticleLine(candidate);
-      if (!cleaned) continue;
-      var key = cleaned.toLowerCase();
-      if (seen[key]) continue;
-      seen[key] = true;
-      guesses.push(cleaned);
-    }
-    return guesses.slice(0, 6);
-  }
-
-  function parseReceiptText(text) {
-    var result = { date: null, store: "" };
-    var lines = text.split("\n").map(function (l) { return l.trim(); }).filter(Boolean);
-
-    // --- Date: numeric formats dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy ---
-    var candidates = [];
-    var numRe = /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/g;
+    var numberWords = Object.keys(NUMBER_WORD_MAP).sort(function (a, b) { return b.length - a.length; }).join("|");
+    var qtyRe = new RegExp("\\b(\\d+|" + numberWords + ")\\b", "gi");
+    var matches = [];
     var m;
-    while ((m = numRe.exec(text)) !== null) {
-      var d = parseInt(m[1], 10), mo = parseInt(m[2], 10), y = parseInt(m[3], 10);
-      if (y < 100) y += 2000;
-      if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12 && y >= 2015 && y <= 2100) {
-        candidates.push({ y: y, m: mo, d: d });
-      }
-    }
-    // --- Date: "12 janvier 2026" textual format ---
-    var textRe = /\b(\d{1,2})\s+(janvier|février|fevrier|mars|avril|mai|juin|juillet|ao[uû]t|septembre|octobre|novembre|d[ée]cembre)\s+(\d{4})\b/gi;
-    while ((m = textRe.exec(text)) !== null) {
-      var monthName = m[2].toLowerCase().replace("û", "u").replace("é", "e");
-      var monthNum = MONTHS_FR[monthName] || MONTHS_FR[m[2].toLowerCase()];
-      if (monthNum) candidates.push({ y: parseInt(m[3], 10), m: monthNum, d: parseInt(m[1], 10) });
+    while ((m = qtyRe.exec(cleaned)) !== null) {
+      matches.push({ start: m.index, end: m.index + m[0].length, raw: m[0].toLowerCase() });
     }
 
-    if (candidates.length > 0) {
-      var todayD = new Date();
-      var valid = candidates.filter(function (c) {
-        var dt = new Date(c.y, c.m - 1, c.d);
-        return dt <= todayD;
-      });
-      var chosen = (valid[0] || candidates[0]);
-      var iso = chosen.y + "-" + String(chosen.m).padStart(2, "0") + "-" + String(chosen.d).padStart(2, "0");
-      result.date = iso;
-    }
+    if (matches.length === 0) return { store: titleCase(cleaned), items: [] };
 
-    // --- Store name ---
-    var upperText = text.toUpperCase();
-    for (var i = 0; i < KNOWN_STORES.length; i++) {
-      if (upperText.indexOf(KNOWN_STORES[i]) !== -1) { result.store = titleCase(KNOWN_STORES[i]); break; }
+    var store = titleCase(cleaned.slice(0, matches[0].start).trim());
+    var items = [];
+    for (var i = 0; i < matches.length; i++) {
+      var raw = matches[i].raw;
+      var qty = /^\d+$/.test(raw) ? parseInt(raw, 10) : (NUMBER_WORD_MAP[raw] || 1);
+      var end = (i + 1 < matches.length) ? matches[i + 1].start : cleaned.length;
+      var name = cleaned.slice(matches[i].end, end).trim();
+      if (!name) continue;
+      items.push({ qty: Math.max(1, qty), name: name });
     }
-    if (!result.store) {
-      var firstLine = lines.filter(function (l) { return l.replace(/[^a-zA-Z]/g, "").length >= 3; })[0];
-      if (firstLine) result.store = titleCase(firstLine.slice(0, 40));
+    return { store: store, items: items };
+  }
+
+  // Applies the parse to the form: store field + one article row per unit (so "2 belts"
+  // becomes two individually-trackable rows, each toggleable as refunded on its own).
+  function applyQuickAddParse(text) {
+    var parsed = parseQuickAdd(text);
+    document.getElementById("f-store").value = parsed.store;
+    articleRowsEl.innerHTML = "";
+    if (parsed.items.length === 0) {
+      addArticleRow();
+      return;
     }
-    return result;
+    parsed.items.forEach(function (item) {
+      var singular = item.qty > 1 ? item.name.replace(/s\s*$/i, "") : item.name;
+      var label = titleCase(singular);
+      for (var n = 0; n < item.qty; n++) addArticleRow(label);
+    });
   }
 
   function titleCase(s) {
@@ -1108,7 +877,6 @@
       store: store,
       purchaseDate: purchaseDate,
       deadline: deadline,
-      photo: photoDataUrl,
       items: items,
       alerts: {},
       createdAt: new Date().toISOString()
