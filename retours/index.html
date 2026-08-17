@@ -87,6 +87,18 @@
   .auth-logo p { color: var(--text-dim); font-size: 0.9rem; margin: 0; }
   .auth-switch { text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--text-dim); }
   .auth-switch a { color: var(--accent); text-decoration: none; }
+  .auth-switch button.linklike {
+    background: none; border: none; color: var(--accent); font-size: 0.85rem; cursor: pointer; padding: 0;
+    text-decoration: underline;
+  }
+
+  .pass-wrap { position: relative; }
+  .pass-wrap input { padding-right: 48px; width: 100%; }
+  .pass-toggle {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text-dim); font-size: 0.75rem;
+    cursor: pointer; padding: 8px 8px;
+  }
 
   /* ---------- Dashboard ---------- */
   .tabs { display: flex; gap: 8px; padding: 0 20px 14px; }
@@ -214,12 +226,22 @@
     <form id="setup-form">
       <div class="section-title">Profil 1</div>
       <div class="field"><label>Prénom</label><input required id="s1-name" type="text" autocomplete="off"></div>
-      <div class="field"><label>Email</label><input required id="s1-email" type="email" autocomplete="off"></div>
-      <div class="field"><label>Mot de passe</label><input required id="s1-pass" type="password" minlength="4"></div>
+      <div class="field"><label>Email</label><input required id="s1-email" type="email" autocomplete="email"></div>
+      <div class="field"><label>Mot de passe</label>
+        <div class="pass-wrap">
+          <input required id="s1-pass" type="password" minlength="4" autocomplete="new-password">
+          <button type="button" class="pass-toggle" data-toggle-pass="s1-pass">Afficher</button>
+        </div>
+      </div>
       <div class="section-title">Profil 2</div>
       <div class="field"><label>Prénom</label><input required id="s2-name" type="text" autocomplete="off"></div>
-      <div class="field"><label>Email</label><input required id="s2-email" type="email" autocomplete="off"></div>
-      <div class="field"><label>Mot de passe</label><input required id="s2-pass" type="password" minlength="4"></div>
+      <div class="field"><label>Email</label><input required id="s2-email" type="email" autocomplete="email"></div>
+      <div class="field"><label>Mot de passe</label>
+        <div class="pass-wrap">
+          <input required id="s2-pass" type="password" minlength="4" autocomplete="new-password">
+          <button type="button" class="pass-toggle" data-toggle-pass="s2-pass">Afficher</button>
+        </div>
+      </div>
       <div class="error-msg" id="setup-error"></div>
       <button class="btn-primary" type="submit">Créer les profils</button>
     </form>
@@ -236,10 +258,16 @@
     </div>
     <form id="login-form">
       <div class="field"><label>Email</label><input required id="login-email" type="email" autocomplete="username"></div>
-      <div class="field"><label>Mot de passe</label><input required id="login-pass" type="password" autocomplete="current-password"></div>
+      <div class="field"><label>Mot de passe</label>
+        <div class="pass-wrap">
+          <input required id="login-pass" type="password" autocomplete="current-password">
+          <button type="button" class="pass-toggle" data-toggle-pass="login-pass">Afficher</button>
+        </div>
+      </div>
       <div class="error-msg" id="login-error"></div>
       <button class="btn-primary" type="submit">Se connecter</button>
     </form>
+    <div class="auth-switch"><button type="button" class="linklike" id="btn-forgot">Mot de passe oublié ? Réinitialiser les profils</button></div>
   </div>
 </div>
 
@@ -542,6 +570,22 @@
     setSessionUserId(null);
     currentUser = null;
     showScreen("screen-login");
+  });
+
+  document.querySelectorAll("[data-toggle-pass]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var input = document.getElementById(btn.getAttribute("data-toggle-pass"));
+      var showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.textContent = showing ? "Afficher" : "Masquer";
+    });
+  });
+
+  document.getElementById("btn-forgot").addEventListener("click", function () {
+    if (!confirm("Ça efface les deux profils (email + mot de passe) pour en recréer de nouveaux. Tes achats déjà enregistrés ne seront pas perdus. Continuer ?")) return;
+    localStorage.removeItem("retours_users");
+    localStorage.removeItem("retours_session");
+    location.reload();
   });
 
   /* ===================== Dashboard ===================== */
