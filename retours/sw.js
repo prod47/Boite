@@ -1,4 +1,4 @@
-const CACHE = "retours-v7";
+const CACHE = "retours-v8";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", "./favicon.png"];
 
 self.addEventListener("install", (event) => {
@@ -35,6 +35,18 @@ self.addEventListener("fetch", (event) => {
         .catch(() => cached);
       return cached || network;
     })
+  );
+});
+
+// Real background delivery: a server-side daily job (Supabase Edge Function) sends this via
+// the Web Push protocol when a purchase crosses the J-7/J-2 threshold, even if the app is closed.
+self.addEventListener("push", (event) => {
+  var data = {};
+  try { data = event.data ? event.data.json() : {}; } catch (e) {}
+  var title = data.title || "Retours";
+  var body = data.body || "";
+  event.waitUntil(
+    self.registration.showNotification(title, { body: body, icon: "icon-192.png", badge: "icon-192.png" })
   );
 });
 

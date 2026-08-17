@@ -189,42 +189,11 @@
   }
 
   .section-title { font-size: 0.82rem; color: var(--text-dim); margin: 4px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .success-msg { color: var(--green); font-size: 0.85rem; margin-top: -6px; margin-bottom: 14px; min-height: 1em; }
 </style>
 </head>
 <body>
-
-<!-- ============ SETUP (first run: create the two profiles) ============ -->
-<div id="screen-setup" class="screen hidden">
-  <div class="auth-wrap">
-    <div class="auth-logo">
-      <span class="emoji">🏷️</span>
-      <h2>Bienvenue</h2>
-      <p>Créez les deux profils qui utiliseront l'application.</p>
-    </div>
-    <form id="setup-form">
-      <div class="section-title">Profil 1</div>
-      <div class="field"><label>Prénom</label><input required id="s1-name" type="text" autocomplete="off"></div>
-      <div class="field"><label>Email</label><input required id="s1-email" type="email" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe</label>
-        <div class="pass-wrap">
-          <input required id="s1-pass" type="password" minlength="4" autocomplete="new-password">
-          <button type="button" class="pass-toggle" data-toggle-pass="s1-pass">Afficher</button>
-        </div>
-      </div>
-      <div class="section-title">Profil 2</div>
-      <div class="field"><label>Prénom</label><input required id="s2-name" type="text" autocomplete="off"></div>
-      <div class="field"><label>Email</label><input required id="s2-email" type="email" autocomplete="email"></div>
-      <div class="field"><label>Mot de passe</label>
-        <div class="pass-wrap">
-          <input required id="s2-pass" type="password" minlength="4" autocomplete="new-password">
-          <button type="button" class="pass-toggle" data-toggle-pass="s2-pass">Afficher</button>
-        </div>
-      </div>
-      <div class="error-msg" id="setup-error"></div>
-      <button class="btn-primary" type="submit">Créer les profils</button>
-    </form>
-  </div>
-</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 
 <!-- ============ LOGIN ============ -->
 <div id="screen-login" class="screen hidden">
@@ -243,9 +212,31 @@
         </div>
       </div>
       <div class="error-msg" id="login-error"></div>
+      <div class="success-msg" id="login-success"></div>
       <button class="btn-primary" type="submit">Se connecter</button>
     </form>
-    <div class="auth-switch"><button type="button" class="linklike" id="btn-forgot">Mot de passe oublié ? Réinitialiser les profils</button></div>
+    <div class="auth-switch"><button type="button" class="linklike" id="btn-forgot">Mot de passe oublié ?</button></div>
+  </div>
+</div>
+
+<!-- ============ RESET PASSWORD (after tapping the emailed link) ============ -->
+<div id="screen-reset-password" class="screen hidden">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <span class="emoji">🔑</span>
+      <h2>Nouveau mot de passe</h2>
+      <p>Choisis un nouveau mot de passe pour ton compte.</p>
+    </div>
+    <form id="reset-password-form">
+      <div class="field"><label>Nouveau mot de passe</label>
+        <div class="pass-wrap">
+          <input required id="reset-pass" type="password" minlength="6" autocomplete="new-password">
+          <button type="button" class="pass-toggle" data-toggle-pass="reset-pass">Afficher</button>
+        </div>
+      </div>
+      <div class="error-msg" id="reset-password-error"></div>
+      <button class="btn-primary" type="submit">Mettre à jour</button>
+    </form>
   </div>
 </div>
 
@@ -308,6 +299,15 @@
   var RETURN_WINDOW_DAYS = 30;
   var ALERT_THRESHOLDS = [7, 2]; // days before deadline
 
+  // Safe to expose client-side: the anon/publishable key only grants what Row Level Security
+  // allows, and the VAPID public key is designed to be public (it's the Push subscription's
+  // "applicationServerKey"). Nothing secret lives in this file.
+  var SUPABASE_URL = "https://wvzivossvfgkuuggnhyh.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_PgwUJLXudHQ1Edc11NLC6g_OZ_xw9in";
+  var VAPID_PUBLIC_KEY = "BCLuncTR0TtEyWBVJ_9xLB1-Bz0tAwcn24dHw574wzkV0eiNut4P0M2lWttgMDzIA7ftN8DZXpdXxiwG_1dfBDA";
+
+  var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   var ICONS = [
     { key: "tshirt", emoji: "👕", words: ["t-shirt", "tshirt", "tee", "haut", "tee-shirt"] },
     { key: "shirt", emoji: "👔", words: ["chemise", "dress shirt"] },
@@ -344,7 +344,6 @@
   };
 
   /* ===================== Utilities ===================== */
-  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   function todayISO() { return new Date().toISOString().slice(0, 10); }
   function addDays(iso, n) {
     var d = new Date(iso + "T00:00:00");
@@ -366,10 +365,6 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  async function sha256(text) {
-    var buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-    return Array.from(new Uint8Array(buf)).map(function (b) { return b.toString(16).padStart(2, "0"); }).join("");
-  }
   function guessIcon(name) {
     var n = (name || "").toLowerCase();
     var best = null, bestIndex = Infinity;
@@ -388,74 +383,8 @@
     return def ? def.emoji : "🏷️";
   }
 
-  /* ===================== Storage: users (localStorage) ===================== */
-  var Users = {
-    all: function () {
-      try { return JSON.parse(localStorage.getItem("retours_users") || "[]"); }
-      catch (e) { return []; }
-    },
-    save: function (list) { localStorage.setItem("retours_users", JSON.stringify(list)); },
-    findByEmail: function (email) {
-      email = (email || "").trim().toLowerCase();
-      return this.all().filter(function (u) { return u.email.toLowerCase() === email; })[0];
-    }
-  };
-
-  /* ===================== Storage: purchases (IndexedDB) ===================== */
-  var DB_NAME = "RetoursDB";
-  var DB_STORE = "purchases";
-  var dbPromise = new Promise(function (resolve, reject) {
-    var req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = function () {
-      var db = req.result;
-      if (!db.objectStoreNames.contains(DB_STORE)) {
-        db.createObjectStore(DB_STORE, { keyPath: "id" });
-      }
-    };
-    req.onsuccess = function () { resolve(req.result); };
-    req.onerror = function () { reject(req.error); };
-  });
-
-  function idbTx(mode) {
-    return dbPromise.then(function (db) { return db.transaction(DB_STORE, mode).objectStore(DB_STORE); });
-  }
-  function idbAll() {
-    return idbTx("readonly").then(function (store) {
-      return new Promise(function (resolve, reject) {
-        var req = store.getAll();
-        req.onsuccess = function () { resolve(req.result || []); };
-        req.onerror = function () { reject(req.error); };
-      });
-    });
-  }
-  function idbPut(record) {
-    return idbTx("readwrite").then(function (store) {
-      return new Promise(function (resolve, reject) {
-        var req = store.put(record);
-        req.onsuccess = function () { resolve(); };
-        req.onerror = function () { reject(req.error); };
-      });
-    });
-  }
-  function idbDelete(id) {
-    return idbTx("readwrite").then(function (store) {
-      return new Promise(function (resolve, reject) {
-        var req = store.delete(id);
-        req.onsuccess = function () { resolve(); };
-        req.onerror = function () { reject(req.error); };
-      });
-    });
-  }
-
-  /* ===================== Session ===================== */
-  function getSessionUserId() { return localStorage.getItem("retours_session"); }
-  function setSessionUserId(id) {
-    if (id) localStorage.setItem("retours_session", id);
-    else localStorage.removeItem("retours_session");
-  }
-
   /* ===================== Screens ===================== */
-  var screens = ["screen-setup", "screen-login", "screen-app", "screen-add"];
+  var screens = ["screen-login", "screen-reset-password", "screen-app", "screen-add"];
   function showScreen(id) {
     screens.forEach(function (s) {
       document.getElementById(s).classList.toggle("hidden", s !== id);
@@ -463,78 +392,60 @@
   }
 
   var currentUser = null;
+  var currentUserName = "";
   var currentTab = "active";
   var purchasesCache = [];
-  var editingId = null;
+  var passwordRecoveryMode = false;
+
+  function setCurrentUser(user) {
+    currentUser = user;
+    currentUserName = (user.user_metadata && user.user_metadata.name) || (user.email || "").split("@")[0];
+  }
 
   /* ===================== Boot ===================== */
+  supabase.auth.onAuthStateChange(function (event) {
+    if (event === "PASSWORD_RECOVERY") {
+      passwordRecoveryMode = true;
+      showScreen("screen-reset-password");
+    }
+  });
+
   async function boot() {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("sw.js").catch(function () {});
     }
-    var users = Users.all();
-    if (users.length === 0) {
-      showScreen("screen-setup");
-      return;
-    }
-    var sessionId = getSessionUserId();
-    var sessionUser = sessionId ? users.filter(function (u) { return u.id === sessionId; })[0] : null;
-    if (sessionUser) {
-      currentUser = sessionUser;
+    var sessionResult = await supabase.auth.getSession();
+    if (passwordRecoveryMode) return;
+    var session = sessionResult.data && sessionResult.data.session;
+    if (session && session.user) {
+      setCurrentUser(session.user);
       await enterApp();
     } else {
       showScreen("screen-login");
     }
   }
 
-  /* ===================== Setup form ===================== */
-  document.getElementById("setup-form").addEventListener("submit", async function (e) {
-    e.preventDefault();
-    var errEl = document.getElementById("setup-error");
-    errEl.textContent = "";
-    var p1 = {
-      name: document.getElementById("s1-name").value.trim(),
-      email: document.getElementById("s1-email").value.trim(),
-      pass: document.getElementById("s1-pass").value
-    };
-    var p2 = {
-      name: document.getElementById("s2-name").value.trim(),
-      email: document.getElementById("s2-email").value.trim(),
-      pass: document.getElementById("s2-pass").value
-    };
-    if (p1.email.toLowerCase() === p2.email.toLowerCase()) {
-      errEl.textContent = "Les deux profils doivent avoir des emails différents.";
-      return;
-    }
-    var users = [
-      { id: uid(), name: p1.name, email: p1.email, passwordHash: await sha256(p1.pass) },
-      { id: uid(), name: p2.name, email: p2.email, passwordHash: await sha256(p2.pass) }
-    ];
-    Users.save(users);
-    currentUser = users[0];
-    setSessionUserId(users[0].id);
-    await enterApp();
-  });
-
   /* ===================== Login form ===================== */
   document.getElementById("login-form").addEventListener("submit", async function (e) {
     e.preventDefault();
     var errEl = document.getElementById("login-error");
+    var okEl = document.getElementById("login-success");
     errEl.textContent = "";
+    okEl.textContent = "";
     var email = document.getElementById("login-email").value.trim();
     var pass = document.getElementById("login-pass").value;
-    var user = Users.findByEmail(email);
-    if (!user) { errEl.textContent = "Aucun compte avec cet email."; return; }
-    var hash = await sha256(pass);
-    if (hash !== user.passwordHash) { errEl.textContent = "Mot de passe incorrect."; return; }
-    currentUser = user;
-    setSessionUserId(user.id);
+    var submitBtn = e.target.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    var result = await supabase.auth.signInWithPassword({ email: email, password: pass });
+    submitBtn.disabled = false;
+    if (result.error) { errEl.textContent = "Email ou mot de passe incorrect."; return; }
+    setCurrentUser(result.data.user);
     document.getElementById("login-form").reset();
     await enterApp();
   });
 
-  document.getElementById("btn-logout").addEventListener("click", function () {
-    setSessionUserId(null);
+  document.getElementById("btn-logout").addEventListener("click", async function () {
+    await supabase.auth.signOut();
     currentUser = null;
     showScreen("screen-login");
   });
@@ -548,20 +459,70 @@
     });
   });
 
-  document.getElementById("btn-forgot").addEventListener("click", function () {
-    if (!confirm("Ça efface les deux profils (email + mot de passe) pour en recréer de nouveaux. Tes achats déjà enregistrés ne seront pas perdus. Continuer ?")) return;
-    localStorage.removeItem("retours_users");
-    localStorage.removeItem("retours_session");
-    location.reload();
+  document.getElementById("btn-forgot").addEventListener("click", async function () {
+    var errEl = document.getElementById("login-error");
+    var okEl = document.getElementById("login-success");
+    errEl.textContent = "";
+    okEl.textContent = "";
+    var email = document.getElementById("login-email").value.trim();
+    if (!email) { errEl.textContent = "Renseigne ton email dans le champ ci-dessus d'abord."; return; }
+    var result = await supabase.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    if (result.error) { errEl.textContent = "Erreur : " + result.error.message; return; }
+    okEl.textContent = "Email envoyé — vérifie ta boîte mail.";
   });
+
+  document.getElementById("reset-password-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var errEl = document.getElementById("reset-password-error");
+    errEl.textContent = "";
+    var pass = document.getElementById("reset-pass").value;
+    var result = await supabase.auth.updateUser({ password: pass });
+    if (result.error) { errEl.textContent = "Erreur : " + result.error.message; return; }
+    passwordRecoveryMode = false;
+    alert("Mot de passe mis à jour. Tu peux te reconnecter.");
+    await supabase.auth.signOut();
+    location.href = location.origin + location.pathname;
+  });
+
+  /* ===================== Push subscription ===================== */
+  function urlBase64ToUint8Array(base64String) {
+    var padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var rawData = atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  async function subscribeToPush() {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !currentUser) return;
+    try {
+      var reg = await navigator.serviceWorker.ready;
+      var sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+      }
+      var json = sub.toJSON();
+      await supabase.from("push_subscriptions").upsert({
+        user_id: currentUser.id,
+        endpoint: json.endpoint,
+        p256dh: json.keys.p256dh,
+        auth: json.keys.auth
+      }, { onConflict: "endpoint" });
+    } catch (e) { /* push subscription best-effort */ }
+  }
 
   /* ===================== Dashboard ===================== */
   async function enterApp() {
-    document.getElementById("current-user-name").textContent = currentUser.name;
+    document.getElementById("current-user-name").textContent = currentUserName;
     showScreen("screen-app");
     updateNotifBanner();
     await refreshList();
     runReminderCheck();
+    if ("Notification" in window && Notification.permission === "granted") subscribeToPush();
   }
 
   document.querySelectorAll(".tab").forEach(function (tab) {
@@ -595,8 +556,8 @@
   }
 
   async function refreshList() {
-    purchasesCache = await idbAll();
-    purchasesCache.sort(function (a, b) { return a.deadline < b.deadline ? -1 : 1; });
+    var result = await supabase.from("purchases").select("*, items(*)").order("deadline", { ascending: true });
+    purchasesCache = result.data || [];
     renderList();
   }
 
@@ -651,10 +612,10 @@
       '<div class="card">' +
       '<div class="card-head">' +
       '<div><div class="store">' + escapeHtml(p.store || "Boutique inconnue") + '</div>' +
-      '<div class="owner">' + escapeHtml(ownerName(p.userId)) + "</div></div>" +
+      '<div class="owner">' + escapeHtml(p.owner_name || "") + "</div></div>" +
       '<span class="badge ' + cls + '">' + label + "</span>" +
       "</div>" +
-      '<div class="dates">Acheté le ' + fmtDate(p.purchaseDate) + " · Retour avant le " + fmtDate(p.deadline) + "</div>" +
+      '<div class="dates">Acheté le ' + fmtDate(p.purchase_date) + " · Retour avant le " + fmtDate(p.deadline) + "</div>" +
       itemsHtml +
       '<div class="card-actions">' +
       '<button class="danger" data-action="delete" data-purchase="' + p.id + '">🗑️ Supprimer</button>' +
@@ -663,25 +624,22 @@
     );
   }
 
-  function ownerName(userId) {
-    var u = Users.all().filter(function (u) { return u.id === userId; })[0];
-    return u ? u.name : "";
-  }
-
   async function toggleItemRefunded(purchaseId, itemId) {
     var p = purchasesCache.filter(function (p) { return p.id === purchaseId; })[0];
     if (!p) return;
     var item = p.items.filter(function (it) { return it.id === itemId; })[0];
     if (!item) return;
-    item.refunded = !item.refunded;
-    item.refundedAt = item.refunded ? todayISO() : null;
-    await idbPut(p);
+    var newVal = !item.refunded;
+    await supabase.from("items").update({
+      refunded: newVal,
+      refunded_at: newVal ? new Date().toISOString() : null
+    }).eq("id", itemId);
     await refreshList();
   }
 
   async function deletePurchase(purchaseId) {
     if (!confirm("Supprimer cet achat et tous ses articles ?")) return;
-    await idbDelete(purchaseId);
+    await supabase.from("purchases").delete().eq("id", purchaseId);
     await refreshList();
   }
 
@@ -694,8 +652,9 @@
   document.getElementById("btn-enable-notif").addEventListener("click", requestNotifPermission);
   async function requestNotifPermission() {
     if (!("Notification" in window)) { alert("Les notifications ne sont pas prises en charge sur cet appareil."); return; }
-    await Notification.requestPermission();
+    var perm = await Notification.requestPermission();
     updateNotifBanner();
+    if (perm === "granted") await subscribeToPush();
     runReminderCheck();
   }
 
@@ -712,28 +671,27 @@
   }
 
   async function runReminderCheck() {
-    var all = await idbAll();
     var today = todayISO();
     var dueSoon = [];
-    var changed = false;
 
-    for (var i = 0; i < all.length; i++) {
-      var p = all[i];
+    for (var i = 0; i < purchasesCache.length; i++) {
+      var p = purchasesCache[i];
       if (!purchaseIsActive(p)) continue;
       var daysLeft = daysBetween(today, p.deadline);
-      p.alerts = p.alerts || {};
 
-      ALERT_THRESHOLDS.forEach(function (threshold) {
-        var key = "d" + threshold;
-        if (daysLeft <= threshold && daysLeft >= 0 && !p.alerts[key]) {
+      for (var t = 0; t < ALERT_THRESHOLDS.length; t++) {
+        var threshold = ALERT_THRESHOLDS[t];
+        var field = "alert_d" + threshold + "_sent";
+        if (daysLeft <= threshold && daysLeft >= 0 && !p[field]) {
           notify("⏰ Retour à faire bientôt", (p.store || "Un achat") + " — il reste " + daysLeft + " jour(s) pour le retourner.");
-          p.alerts[key] = true;
-          changed = true;
+          p[field] = true;
+          var patch = {};
+          patch[field] = true;
+          await supabase.from("purchases").update(patch).eq("id", p.id);
         }
-      });
+      }
 
       if (daysLeft <= 7) dueSoon.push(p);
-      if (changed) await idbPut(p);
     }
 
     // App-icon badge (iOS 16.4+ standalone PWA) + in-app banner as a reliable fallback.
@@ -752,7 +710,9 @@
   }
 
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "visible" && currentUser) runReminderCheck();
+    if (document.visibilityState === "visible" && currentUser) {
+      refreshList().then(runReminderCheck);
+    }
   });
 
   /* ===================== Add purchase flow ===================== */
@@ -762,7 +722,6 @@
   document.getElementById("btn-add-cancel").addEventListener("click", function () { showScreen("screen-app"); });
 
   function openAddScreen() {
-    editingId = null;
     document.getElementById("quick-add-text").value = "";
     document.getElementById("f-store").value = "";
     document.getElementById("f-date").value = todayISO();
@@ -866,30 +825,38 @@
     var items = rows.map(function (row) {
       var name = row.querySelector(".a-name").value.trim();
       var icon = row.querySelector(".a-icon").value;
-      return name ? { id: uid(), name: name, icon: icon, refunded: false, refundedAt: null } : null;
+      return name ? { name: name, icon: icon } : null;
     }).filter(Boolean);
 
     if (items.length === 0) { alert("Ajoute au moins un article."); return; }
 
-    var record = {
-      id: editingId || uid(),
-      userId: currentUser.id,
-      store: store,
-      purchaseDate: purchaseDate,
-      deadline: deadline,
-      items: items,
-      alerts: {},
-      createdAt: new Date().toISOString()
-    };
+    var saveBtn = document.getElementById("btn-add-save");
+    saveBtn.disabled = true;
+    try {
+      var purchaseResult = await supabase.from("purchases").insert({
+        user_id: currentUser.id,
+        owner_name: currentUserName,
+        store: store,
+        purchase_date: purchaseDate,
+        deadline: deadline
+      }).select().single();
+      if (purchaseResult.error) throw purchaseResult.error;
 
-    await idbPut(record);
-    showScreen("screen-app");
-    await refreshList();
+      var itemRows = items.map(function (it) {
+        return { purchase_id: purchaseResult.data.id, name: it.name, icon: it.icon };
+      });
+      var itemsResult = await supabase.from("items").insert(itemRows);
+      if (itemsResult.error) throw itemsResult.error;
 
-    if ("Notification" in window && Notification.permission === "default") {
-      updateNotifBanner();
+      showScreen("screen-app");
+      await refreshList();
+      if ("Notification" in window && Notification.permission === "default") updateNotifBanner();
+      runReminderCheck();
+    } catch (err) {
+      alert("Erreur lors de l'enregistrement : " + (err && err.message ? err.message : err));
+    } finally {
+      saveBtn.disabled = false;
     }
-    runReminderCheck();
   });
 
   boot();
