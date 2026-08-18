@@ -56,6 +56,7 @@
     border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; cursor: pointer;
   }
   .icon-btn:active { opacity: 0.7; }
+  .current-user-label { font-size: 0.85rem; color: var(--text-dim); white-space: nowrap; }
 
   .field { margin-bottom: 16px; }
   .field label { display: block; font-size: 0.82rem; color: var(--text-dim); margin-bottom: 6px; }
@@ -254,9 +255,10 @@
 <div id="screen-app" class="screen hidden">
   <div class="topbar">
     <h1>🏷️ Retours</h1>
-    <div style="display:flex; gap:8px;">
+    <div style="display:flex; gap:8px; align-items:center;">
       <button class="icon-btn" id="btn-notif">🔔</button>
-      <button class="icon-btn" id="btn-logout">Salut, <span id="current-user-name"></span> ↩︎</button>
+      <span class="current-user-label">Salut, <span id="current-user-name"></span></span>
+      <button class="icon-btn" id="btn-logout" title="Se déconnecter">↩︎</button>
     </div>
   </div>
 
@@ -649,7 +651,7 @@
       '<div class="card-head" data-action="toggle-expand" data-purchase="' + p.id + '">' +
       '<div><div class="store">' + escapeHtml(p.store || "Boutique inconnue") +
       '<span class="chevron">⌄</span></div>' +
-      '<div class="owner">' + escapeHtml(p.owner_name || "") + " · " + itemCount + (itemCount > 1 ? " articles" : " article") + "</div></div>" +
+      '<div class="owner">' + itemCount + (itemCount > 1 ? " articles" : " article") + "</div></div>" +
       '<span class="badge ' + cls + '">' + label + "</span>" +
       "</div>" +
       '<div class="collapsible">' +

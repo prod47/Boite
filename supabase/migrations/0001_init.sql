@@ -1,10 +1,11 @@
--- Retours: shared purchase/return tracker for two trusted household accounts.
+-- Retours: private purchase/return tracker, one separate space per account.
 --
 -- Security model: rather than relying on public sign-up being disabled in the dashboard
 -- (a setting that moves around between Supabase versions and is easy to lose track of),
--- every policy below checks the session's email against a hardcoded allow-list. Anyone else
--- who manages to create an account — sign-up left on, invite link leaked, etc. — is still
--- authenticated but matches neither email, so every policy below denies them regardless.
+-- every policy below checks the session's email against a hardcoded allow-list AND that the
+-- row belongs to that same session (user_id = auth.uid()). Anyone else who manages to create
+-- an account is still authenticated but matches neither email, so every policy denies them —
+-- and each of the two legitimate accounts only ever sees its own rows, never the other's.
 --
 -- This is a reference copy for version control only — replace REPLACE_WITH_EMAIL_1 and
 -- REPLACE_WITH_EMAIL_2 with the two real account emails before running it, and run that
@@ -47,24 +48,51 @@ alter table public.push_subscriptions enable row level security;
 
 drop policy if exists "authenticated full access" on public.purchases;
 drop policy if exists "household accounts only" on public.purchases;
-create policy "household accounts only" on public.purchases
+drop policy if exists "own purchases only" on public.purchases;
+create policy "own purchases only" on public.purchases
   for all
-  using (auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2']))
-  with check (auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2']));
+  using (
+    auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2'])
+    and user_id = auth.uid()
+  )
+  with check (
+    auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2'])
+    and user_id = auth.uid()
+  );
 
 drop policy if exists "authenticated full access" on public.items;
 drop policy if exists "household accounts only" on public.items;
-create policy "household accounts only" on public.items
+drop policy if exists "own items only" on public.items;
+create policy "own items only" on public.items
   for all
-  using (auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2']))
-  with check (auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2']));
+  using (
+    auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2'])
+    and exists (
+      select 1 from public.purchases p
+      where p.id = items.purchase_id and p.user_id = auth.uid()
+    )
+  )
+  with check (
+    auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2'])
+    and exists (
+      select 1 from public.purchases p
+      where p.id = items.purchase_id and p.user_id = auth.uid()
+    )
+  );
 
 drop policy if exists "authenticated full access" on public.push_subscriptions;
 drop policy if exists "household accounts only" on public.push_subscriptions;
-create policy "household accounts only" on public.push_subscriptions
+drop policy if exists "own subscriptions only" on public.push_subscriptions;
+create policy "own subscriptions only" on public.push_subscriptions
   for all
-  using (auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2']))
-  with check (auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2']));
+  using (
+    auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2'])
+    and user_id = auth.uid()
+  )
+  with check (
+    auth.email() = ANY (ARRAY['REPLACE_WITH_EMAIL_1', 'REPLACE_WITH_EMAIL_2'])
+    and user_id = auth.uid()
+  );
 
 create index if not exists items_purchase_id_idx on public.items(purchase_id);
 create index if not exists push_subscriptions_user_id_idx on public.push_subscriptions(user_id);
