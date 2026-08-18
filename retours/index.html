@@ -136,7 +136,13 @@
 
   .card .collapsible { display: none; }
   .card.expanded .collapsible { display: block; }
-  .card .dates { font-size: 0.78rem; color: var(--text-dim); margin: 6px 0 12px; }
+  .edit-dates { display: flex; gap: 10px; margin: 6px 0 12px; flex-wrap: wrap; }
+  .edit-dates .field-inline { flex: 1; min-width: 140px; }
+  .edit-dates label { display: block; font-size: 0.7rem; color: var(--text-dim); margin-bottom: 3px; }
+  .edit-dates input[type=date] {
+    width: 100%; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 7px 8px; font-size: 0.82rem;
+  }
 
   .item-row {
     display: flex; align-items: center; gap: 10px; padding: 8px 0;
@@ -606,6 +612,18 @@
         deletePurchase(btn.getAttribute("data-purchase"));
       });
     });
+    list.querySelectorAll(".edit-purchase-date").forEach(function (input) {
+      input.addEventListener("click", function (e) { e.stopPropagation(); });
+      input.addEventListener("change", function () {
+        updatePurchaseDateField(input.getAttribute("data-purchase"), "purchase_date", input.value);
+      });
+    });
+    list.querySelectorAll(".edit-deadline").forEach(function (input) {
+      input.addEventListener("click", function (e) { e.stopPropagation(); });
+      input.addEventListener("change", function () {
+        updatePurchaseDateField(input.getAttribute("data-purchase"), "deadline", input.value);
+      });
+    });
   }
 
   function renderCard(p) {
@@ -635,7 +653,10 @@
       '<span class="badge ' + cls + '">' + label + "</span>" +
       "</div>" +
       '<div class="collapsible">' +
-      '<div class="dates">Acheté le ' + fmtDate(p.purchase_date) + " · Retour avant le " + fmtDate(p.deadline) + "</div>" +
+      '<div class="edit-dates">' +
+      '<div class="field-inline"><label>Acheté le</label><input type="date" class="edit-purchase-date" data-purchase="' + p.id + '" value="' + p.purchase_date + '"></div>' +
+      '<div class="field-inline"><label>Retour avant le</label><input type="date" class="edit-deadline" data-purchase="' + p.id + '" value="' + p.deadline + '"></div>' +
+      "</div>" +
       itemsHtml +
       '<div class="card-actions">' +
       '<button class="danger" data-action="delete" data-purchase="' + p.id + '">🗑️ Supprimer</button>' +
@@ -643,6 +664,19 @@
       "</div>" +
       "</div>"
     );
+  }
+
+  // Editing a date re-arms both alert thresholds, so pulling a deadline closer (e.g. to test
+  // notifications) can fire again even if it already fired once at the old, farther-out date.
+  async function updatePurchaseDateField(purchaseId, field, value) {
+    if (!value) return;
+    var patch = {};
+    patch[field] = value;
+    patch.alert_d7_sent = false;
+    patch.alert_d2_sent = false;
+    await supabase.from("purchases").update(patch).eq("id", purchaseId);
+    await refreshList();
+    runReminderCheck();
   }
 
   async function toggleItemRefunded(purchaseId, itemId) {
