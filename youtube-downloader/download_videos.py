@@ -72,8 +72,8 @@ def extract_urls(input_path: Path) -> list[str]:
     return ordered
 
 
-def build_ydl_opts(output_dir: Path, allow_playlist: bool):
-    return {
+def build_ydl_opts(output_dir: Path, allow_playlist: bool, cookies_from_browser: str | None):
+    opts = {
         "format": "bv*+ba/b",
         "merge_output_format": "mp4",
         "outtmpl": str(output_dir / "%(title)s [%(id)s].%(ext)s"),
@@ -83,13 +83,24 @@ def build_ydl_opts(output_dir: Path, allow_playlist: bool):
         "quiet": False,
         "no_warnings": False,
     }
+    if cookies_from_browser:
+        # reutilise la session YouTube du navigateur : evite les blocages
+        # "confirme que tu n'es pas un robot" et donne acces aux videos
+        # avec restriction d'age / non repertoriees
+        opts["cookiesfrombrowser"] = (cookies_from_browser,)
+    return opts
 
 
-def download_all(urls: list[str], output_dir: Path, allow_playlist: bool) -> list[dict]:
+def download_all(
+    urls: list[str],
+    output_dir: Path,
+    allow_playlist: bool,
+    cookies_from_browser: str | None = None,
+) -> list[dict]:
     import yt_dlp
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    ydl_opts = build_ydl_opts(output_dir, allow_playlist)
+    ydl_opts = build_ydl_opts(output_dir, allow_playlist, cookies_from_browser)
 
     results = []
     total = len(urls)
@@ -134,6 +145,12 @@ def main():
         help="Autoriser le telechargement de playlists entieres (par defaut : desactive, "
              "un seul lien = une seule video)",
     )
+    parser.add_argument(
+        "--cookies-from-browser", metavar="NAVIGATEUR", default=None,
+        help="Nom du navigateur (chrome, edge, firefox...) dont reutiliser la session "
+             "YouTube connectee. Utile en cas d'erreur 'confirme que tu n'es pas un "
+             "robot' ou pour les videos avec restriction d'age.",
+    )
     args = parser.parse_args()
 
     if not args.input.exists():
@@ -145,7 +162,7 @@ def main():
 
     print(f"{len(urls)} lien(s) YouTube trouve(s). Destination : {args.output}")
 
-    results = download_all(urls, args.output, args.playlist)
+    results = download_all(urls, args.output, args.playlist, args.cookies_from_browser)
     log_path = write_log(results, args.output)
 
     ok = sum(1 for r in results if r["status"] == "OK")

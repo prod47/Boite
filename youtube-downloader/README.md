@@ -102,6 +102,27 @@ ou similaire, commence toujours par faire cette mise a jour.
   telecharger *toute* la playlist plutot que la seule video (par defaut,
   le script ne telecharge que la video precise du lien, meme si elle fait
   partie d'une playlist).
+- `--cookies-from-browser edge` (ou `chrome`, `firefox`...) : reutilise la
+  session YouTube connectee de ton navigateur. A utiliser si tu obtiens une
+  erreur du type "Sign in to confirm you're not a bot" (de plus en plus
+  frequent sur YouTube en cas de telechargements repetes), ou pour recuperer
+  une video avec restriction d'age / non repertoriee. Ferme bien le
+  navigateur avant de lancer le script pour que yt-dlp puisse lire les
+  cookies. Dans `lancer_windows.bat`, renseigne simplement la ligne
+  `NAVIGATEUR=edge` pour l'activer automatiquement.
+
+## 6. Cas particulier : extraits de concerts/clips pour montage
+
+Pour un usage editorial (extraits diffuses dans une emission), deux points
+a garder en tete, independants du fonctionnement technique du script :
+- Le telechargement en lui-meme n'a aucune contrainte technique
+  particuliere pour des clips ou concerts (meme qualite, meme fiabilite
+  que n'importe quelle autre video).
+- En revanche, la diffusion d'extraits dans une emission releve du droit
+  d'auteur/droits voisins (SACEM, labels, ayants droit) - un sujet
+  independant de l'outil de telechargement. Si ce n'est pas deja cadre
+  avec les artistes/labels interviewes, ca vaut le coup de vérifier ce
+  point separement.
 
 ## Depannage
 
