@@ -72,6 +72,41 @@ def extract_urls(input_path: Path) -> list[str]:
     return ordered
 
 
+SUPPORTED_EXTENSIONS = {".xlsx", ".docx", ".csv", ".txt"}
+
+
+def find_input_files(folder: Path) -> list[Path]:
+    files = [
+        p for p in sorted(folder.iterdir())
+        if p.is_file()
+        and p.suffix.lower() in SUPPORTED_EXTENSIONS
+        and not p.name.startswith("~$")  # fichiers verrous crees par Excel/Word quand ouverts
+    ]
+    return files
+
+
+def extract_urls_from_folder(folder: Path) -> list[str]:
+    files = find_input_files(folder)
+    if not files:
+        sys.exit(
+            f"Aucun fichier .xlsx/.docx/.csv/.txt trouve dans : {folder}\n"
+            "Mets ton tableau de liens dans ce dossier puis relance."
+        )
+
+    print("Fichier(s) de liens detecte(s) :")
+    for f in files:
+        print(f"  - {f.name}")
+
+    seen = set()
+    ordered = []
+    for f in files:
+        for u in extract_urls(f):
+            if u not in seen:
+                seen.add(u)
+                ordered.append(u)
+    return ordered
+
+
 def build_ydl_opts(output_dir: Path, allow_playlist: bool, cookies_from_browser: str | None):
     opts = {
         "format": "bv*+ba/b",
@@ -132,9 +167,15 @@ def write_log(results: list[dict], output_dir: Path) -> Path:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--input", "-i", required=True, type=Path,
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--input", "-i", type=Path,
         help="Fichier contenant les liens YouTube (.xlsx, .docx, .csv ou .txt)",
+    )
+    source.add_argument(
+        "--input-folder", type=Path,
+        help="Dossier a surveiller : tous les fichiers .xlsx/.docx/.csv/.txt qu'il "
+             "contient sont lus (nom de fichier libre, peut changer a chaque fois)",
     )
     parser.add_argument(
         "--output", "-o", required=True, type=Path,
@@ -153,12 +194,17 @@ def main():
     )
     args = parser.parse_args()
 
-    if not args.input.exists():
-        sys.exit(f"Fichier introuvable : {args.input}")
+    if args.input_folder:
+        if not args.input_folder.exists():
+            sys.exit(f"Dossier introuvable : {args.input_folder}")
+        urls = extract_urls_from_folder(args.input_folder)
+    else:
+        if not args.input.exists():
+            sys.exit(f"Fichier introuvable : {args.input}")
+        urls = extract_urls(args.input)
 
-    urls = extract_urls(args.input)
     if not urls:
-        sys.exit("Aucun lien YouTube trouve dans le fichier fourni.")
+        sys.exit("Aucun lien YouTube trouve dans le(s) fichier(s) fourni(s).")
 
     print(f"{len(urls)} lien(s) YouTube trouve(s). Destination : {args.output}")
 

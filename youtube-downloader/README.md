@@ -54,28 +54,40 @@ pas besoin de "nettoyer" le fichier.
 
 ## 3. Lancer le telechargement
 
-### Option simple : fichier a double-cliquer
-1. Ouvre `lancer_windows.bat` (Windows) ou `lancer_mac.command` (Mac) avec
-   un editeur de texte.
-2. Modifie les deux lignes en haut du fichier :
-   - `FICHIER_LIENS` : le chemin vers ton fichier de liens (ex :
-     `liens.xlsx`, ou un chemin complet comme `C:\Users\toi\Bureau\liens.xlsx`).
-   - `DOSSIER_DESTINATION` : le chemin vers le disque dur ou tu veux
-     stocker les videos (ex : `D:\Videos` sur Windows, ou
-     `/Volumes/MonDisqueDur/Videos` sur Mac).
-3. Enregistre, puis double-clique sur le fichier a chaque fois que tu veux
-   lancer un telechargement. (Sur Mac, la premiere fois : clic droit >
-   Ouvrir, pour autoriser l'execution.)
+### Fonctionnement en "dossier a deposer" (recommande)
+
+Le projet contient deux dossiers :
+- **`Document Excel Avec Lien/`** : depose ici ton fichier Excel (ou Word/CSV/txt)
+  contenant les liens. Le nom du fichier n'a pas d'importance et peut changer
+  a chaque fois - le script prend tout ce qu'il trouve dans ce dossier.
+- **`Videos/`** : c'est ici que les videos telechargees atterrissent.
+
+A chaque nouveau lot de liens :
+1. Supprime l'ancien fichier Excel dans `Document Excel Avec Lien/` (ou laisse-le,
+   le script lit tous les fichiers presents et fusionne les liens - a toi de voir).
+2. Depose le nouveau fichier Excel dans `Document Excel Avec Lien/`.
+3. Double-clique sur `lancer_windows.bat` (Windows) ou `lancer_mac.command` (Mac).
+   (Sur Mac, la premiere fois : clic droit > Ouvrir, pour autoriser l'execution.)
+
+Les videos se telechargent **une par une** dans `Videos/`, sous le nom
+`Titre de la video [identifiant].mp4`.
+
+> Plus tard, si tu veux telecharger directement sur un disque dur externe
+> (qui change selon les jours), il suffira de changer la ligne
+> `DOSSIER_DESTINATION` dans `lancer_windows.bat` par le chemin du disque
+> (ex: `E:\Videos`) - on ajustera ca ensemble le moment venu.
 
 ### Option ligne de commande (plus flexible)
 
 ```bash
-python download_videos.py --input liens.xlsx --output "/chemin/vers/le/disque/dur/Videos"
+python download_videos.py --input-folder "Document Excel Avec Lien" --output "Videos"
 ```
 
-Les videos se telechargent **une par une**, dans l'ordre du fichier.
-Chaque video est enregistree sous le nom
-`Titre de la video [identifiant].mp4`.
+ou, pour viser un seul fichier precis :
+
+```bash
+python download_videos.py --input liens.xlsx --output "/chemin/vers/le/disque/dur/Videos"
+```
 
 A la fin, un fichier `journal_telechargement_AAAAMMJJ_HHMMSS.csv` est cree
 dans le dossier de destination : il liste, pour chaque lien, si le

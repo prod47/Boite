@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+
+Document Excel Avec Lien/*
+!Document Excel Avec Lien/.gitkeep
+Videos/*
+!Videos/.gitkeep
