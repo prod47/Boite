@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Matériel</title>
+<meta name="description" content="Inventaire du matériel de studio TV et de tournage, avec description et recherche par IA.">
+<meta name="theme-color" content="#0f0f1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Matériel">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.png">
+<style>
+  :root {
+    --bg: #0f0f1a;
+    --bg-elevated: #191926;
+    --card: #1e1e2e;
+    --border: #2c2c3d;
+    --text: #f2f2f7;
+    --text-dim: #9797ab;
+    --accent: #06b6d4;
+    --accent-2: #0891b2;
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --gray: #6b7280;
+    font-size: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  button { font-family: inherit; }
+  input, select, textarea { font-family: inherit; }
+  .hidden { display: none !important; }
+  .screen { min-height: 100%; display: flex; flex-direction: column; }
+
+  /* ---------- Generic building blocks ---------- */
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 20px 12px; gap: 10px;
+  }
+  .topbar h1 { font-size: 1.3rem; margin: 0; letter-spacing: -0.02em; white-space: nowrap; }
+  .icon-btn {
+    background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 8px 12px; font-size: 0.85rem; cursor: pointer;
+  }
+  .icon-btn:active { opacity: 0.7; }
+  .current-user-label { font-size: 0.8rem; color: var(--text-dim); white-space: nowrap; }
+
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 0.82rem; color: var(--text-dim); margin-bottom: 6px; }
+  .field input, .field select, .field textarea {
+    width: 100%; background: var(--bg-elevated); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px; padding: 12px 14px; font-size: 1rem;
+  }
+  .field textarea { resize: vertical; font-family: inherit; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline: 2px solid var(--accent); }
+  .field .hint { font-size: 0.78rem; color: var(--text-dim); margin: 8px 0 0; line-height: 1.4; }
+
+  .btn-primary {
+    width: 100%; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: white; border: none; border-radius: 12px; padding: 14px; font-size: 1rem;
+    font-weight: 600; cursor: pointer;
+  }
+  .btn-primary:active { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.5; }
+  .btn-secondary {
+    width: 100%; background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: 12px; padding: 12px; font-size: 0.95rem;
+    cursor: pointer; margin-top: 10px;
+  }
+  .btn-danger { color: var(--red); border-color: rgba(239,68,68,0.4); }
+  .error-msg { color: var(--red); font-size: 0.85rem; margin-top: -6px; margin-bottom: 14px; min-height: 1em; }
+  .success-msg { color: var(--green); font-size: 0.85rem; margin-top: -6px; margin-bottom: 14px; min-height: 1em; }
+  .section-title { font-size: 0.82rem; color: var(--text-dim); margin: 4px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+  /* ---------- Auth ---------- */
+  .auth-wrap { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 32px 24px; max-width: 420px; margin: 0 auto; width: 100%; }
+  .auth-logo { text-align: center; margin-bottom: 28px; }
+  .auth-logo .emoji { font-size: 3rem; }
+  .auth-logo h2 { margin: 8px 0 4px; font-size: 1.5rem; }
+  .auth-logo p { color: var(--text-dim); font-size: 0.9rem; margin: 0; }
+  .auth-switch { text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--text-dim); }
+  .auth-switch button.linklike {
+    background: none; border: none; color: var(--accent); font-size: 0.85rem; cursor: pointer; padding: 0;
+    text-decoration: underline;
+  }
+  .pass-wrap { position: relative; }
+  .pass-wrap input { padding-right: 48px; width: 100%; }
+  .pass-toggle {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text-dim); font-size: 0.75rem;
+    cursor: pointer; padding: 8px 8px;
+  }
+
+  /* ---------- Dashboard ---------- */
+  .search-bar { display: flex; gap: 8px; padding: 0 20px 10px; }
+  .search-bar input {
+    flex: 1; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text);
+    border-radius: 12px; padding: 12px 14px; font-size: 0.95rem;
+  }
+  .search-bar input:focus { outline: 2px solid var(--accent); }
+  .search-bar button {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; border: none;
+    border-radius: 12px; padding: 0 16px; font-size: 1.1rem; cursor: pointer; flex-shrink: 0;
+  }
+  .search-hint { padding: 0 20px 12px; font-size: 0.76rem; color: var(--text-dim); }
+
+  .filters { display: flex; gap: 8px; padding: 0 20px 14px; overflow-x: auto; }
+  .filters select {
+    background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-dim);
+    border-radius: 10px; padding: 8px 10px; font-size: 0.82rem; flex-shrink: 0;
+  }
+
+  .grid { flex: 1; padding: 0 20px 100px; overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .empty-state { grid-column: 1 / -1; text-align: center; color: var(--text-dim); margin-top: 60px; padding: 0 20px; }
+  .empty-state .emoji { font-size: 2.6rem; display: block; margin-bottom: 10px; }
+
+  .item-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    overflow: hidden; cursor: pointer; display: flex; flex-direction: column;
+  }
+  .item-card .thumb {
+    width: 100%; aspect-ratio: 1; background: var(--bg-elevated); display: flex; align-items: center;
+    justify-content: center; font-size: 2rem; color: var(--text-dim); overflow: hidden;
+  }
+  .item-card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .item-card .body { padding: 10px 12px 12px; }
+  .item-card .name { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; line-height: 1.25; }
+  .item-card .meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 0.68rem; font-weight: 700; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+  .badge.cyan { background: rgba(6,182,212,0.15); color: var(--accent); }
+  .badge.gray { background: rgba(107,114,128,0.18); color: var(--gray); }
+  .badge.orange { background: rgba(245,158,11,0.15); color: var(--orange); }
+  .badge.red { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  .fab {
+    position: fixed; right: 20px; bottom: calc(24px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; border-radius: 50%; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white;
+    font-size: 1.7rem; box-shadow: 0 8px 20px rgba(6,182,212,0.45); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ---------- Add / detail ---------- */
+  .add-body { flex: 1; overflow-y: auto; padding: 4px 20px 40px; }
+
+  .photo-strip { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 16px; }
+  .photo-thumb { position: relative; width: 92px; height: 92px; border-radius: 12px; overflow: hidden; flex-shrink: 0; background: var(--bg-elevated); border: 1px solid var(--border); }
+  .photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-thumb .remove {
+    position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); color: white; border: none; font-size: 0.8rem; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .add-photo-btn {
+    width: 92px; height: 92px; border-radius: 12px; flex-shrink: 0; background: none;
+    border: 1px dashed var(--border); color: var(--accent); font-size: 1.6rem; cursor: pointer;
+  }
+
+  .specs-row { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+  .specs-row input {
+    background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text);
+    border-radius: 10px; padding: 10px 12px; font-size: 0.9rem; min-width: 0;
+  }
+  .specs-row input.spec-key { width: 38%; flex-shrink: 0; }
+  .specs-row input.spec-val { flex: 1; }
+  .specs-row button {
+    flex-shrink: 0; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--red);
+    border-radius: 10px; width: 40px; height: 40px; font-size: 1rem; cursor: pointer;
+  }
+  .add-row-btn {
+    background: none; border: 1px dashed var(--border); color: var(--accent);
+    border-radius: 10px; padding: 10px; width: 100%; font-size: 0.86rem; cursor: pointer; margin-bottom: 20px;
+  }
+
+  .status-line { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; }
+  .status-line .txt { font-size: 0.85rem; color: var(--text-dim); }
+
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 50;
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+
+  /* ---------- Search results ---------- */
+  .search-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 40; display: flex; flex-direction: column; }
+  .search-results { flex: 1; overflow-y: auto; padding: 0 20px 40px; }
+  .result-card {
+    display: flex; gap: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 12px; margin-bottom: 12px; cursor: pointer;
+  }
+  .result-card .thumb { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: var(--bg-elevated); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+  .result-card .thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .result-card .info { flex: 1; min-width: 0; }
+  .result-card .name { font-weight: 600; font-size: 0.92rem; margin-bottom: 3px; }
+  .result-card .reason { font-size: 0.8rem; color: var(--text-dim); line-height: 1.35; margin-top: 4px; }
+  .spinner {
+    width: 22px; height: 22px; border-radius: 50%; border: 3px solid var(--border);
+    border-top-color: var(--accent); animation: spin 0.8s linear infinite; flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .center-loading { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--text-dim); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<!-- ============ LOGIN ============ -->
+<div id="screen-login" class="screen hidden">
+  <div class="auth-wrap">
+    <div class="auth-logo">
+      <span class="emoji">🎬</span>
+      <h2>Matériel</h2>
+      <p>Ton inventaire de studio, retrouvable en une phrase.</p>
+    </div>
+    <form id="login-form">
+      <div class="field"><label>Mot de passe</label>
+        <div class="pass-wrap">
+          <input required id="login-pass" type="password" autocomplete="current-password">
+          <button type="button" class="pass-toggle" data-toggle-pass="login-pass">Afficher</button>
+        </div>
+      </div>
+      <div class="error-msg" id="login-error"></div>
+      <button class="btn-primary" type="submit">Déverrouiller</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ DASHBOARD ============ -->
+<div id="screen-app" class="screen hidden">
+  <div class="topbar">
+    <h1>🎬 Matériel</h1>
+    <button class="icon-btn" id="btn-logout" title="Se déconnecter">↩︎</button>
+  </div>
+
+  <form id="search-form" class="search-bar">
+    <input id="search-input" type="text" placeholder="Ex: alimentation 19V 3A avec la bonne tête" autocomplete="off">
+    <button type="submit" title="Rechercher avec l'IA">🔍</button>
+  </form>
+  <p class="search-hint">Astuce : décris ce dont tu as besoin en langage naturel, l'IA propose les objets les plus proches — même par compatibilité technique.</p>
+
+  <div class="filters">
+    <select id="filter-category"><option value="">Toutes catégories</option></select>
+    <select id="filter-location"><option value="">Tous emplacements</option></select>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <button class="fab" id="btn-add">＋</button>
+</div>
+
+<!-- ============ ADD ITEM ============ -->
+<div id="screen-add" class="screen hidden">
+  <div class="topbar">
+    <button class="icon-btn" id="btn-add-cancel">Annuler</button>
+    <h1 style="font-size:1.1rem;">Nouvel objet</h1>
+    <button class="icon-btn" id="btn-add-save">Enregistrer</button>
+  </div>
+  <div class="add-body">
+    <div class="section-title">Photos</div>
+    <div class="photo-strip" id="add-photo-strip">
+      <button type="button" class="add-photo-btn" id="btn-add-photo">📷</button>
+    </div>
+    <input type="file" accept="image/*" capture="environment" id="photo-input" class="hidden">
+
+    <div class="field">
+      <label>Nom ou phrase rapide</label>
+      <textarea id="f-add-label" rows="2" placeholder="Alim Dell 19V, bras magic Manfrotto…"></textarea>
+      <p class="hint">Astuce : appuie sur le micro 🎤 du clavier pour dicter à voix haute — rien n'est enregistré, seul le texte reconnu par ton téléphone arrive ici.</p>
+    </div>
+
+    <div class="field">
+      <label>Emplacement</label>
+      <input id="f-add-location" type="text" list="location-suggestions" placeholder="A1, B3, C12…">
+      <datalist id="location-suggestions"></datalist>
+    </div>
+
+    <p class="hint" id="add-error" style="color:var(--red);"></p>
+  </div>
+</div>
+
+<!-- ============ ITEM DETAIL ============ -->
+<div id="screen-detail" class="screen hidden">
+  <div class="topbar">
+    <button class="icon-btn" id="btn-detail-back">← Retour</button>
+    <h1 style="font-size:1.1rem;">Détail</h1>
+    <button class="icon-btn" id="btn-detail-save">Enregistrer</button>
+  </div>
+  <div class="add-body">
+    <div class="photo-strip" id="detail-photo-strip"></div>
+
+    <div class="status-line">
+      <span id="detail-status-badge"></span>
+      <span class="txt" id="detail-status-text"></span>
+    </div>
+
+    <div class="field"><label>Nom / phrase</label><input id="f-detail-label" type="text"></div>
+    <div class="field">
+      <label>Catégorie</label>
+      <input id="f-detail-category" type="text" list="category-suggestions">
+      <datalist id="category-suggestions"></datalist>
+    </div>
+    <div class="field">
+      <label>Emplacement</label>
+      <input id="f-detail-location" type="text" list="location-suggestions-2">
+      <datalist id="location-suggestions-2"></datalist>
+    </div>
+    <div class="field"><label>Description</label><textarea id="f-detail-description" rows="3"></textarea></div>
+
+    <div class="section-title">Caractéristiques techniques</div>
+    <div id="detail-specs"></div>
+    <button type="button" class="add-row-btn" id="btn-add-spec">+ Ajouter une caractéristique</button>
+
+    <button type="button" class="btn-secondary" id="btn-reanalyze">🤖 Ré-analyser avec l'IA</button>
+    <button type="button" class="btn-secondary btn-danger" id="btn-delete-item">Supprimer cet objet</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ===================== Config ===================== */
+  // Safe to expose client-side: the anon/publishable key only grants what Row Level Security
+  // allows. Nothing secret lives in this file — the Anthropic API key stays server-side, inside
+  // the Supabase Edge Functions.
+  //
+  // Single shared account, no email UX: there's one Supabase Auth user behind this app (created
+  // once from the dashboard, never through public sign-up), and its login email is fixed and
+  // not meant to be secret — like the anon key, it grants nothing by itself. The password is
+  // what actually gates access, combined with the Postgres/Storage RLS policies in
+  // supabase/migrations/0002_materiel_init.sql that only let this exact account touch its rows.
+  var SUPABASE_URL = "https://wvzivossvfgkuuggnhyh.supabase.co";
+  var SUPABASE_ANON_KEY = "sb_publishable_PgwUJLXudHQ1Edc11NLC6g_OZ_xw9in";
+  var APP_LOGIN_EMAIL = "studio-materiel@inventaire.local";
+  var PHOTO_BUCKET = "materiel-photos";
+  var MAX_PHOTO_DIM = 1600;
+
+  var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  var DEFAULT_CATEGORIES = ["caméra", "objectif", "éclairage", "alimentation", "câble", "support/bras", "trépied", "audio", "accessoire", "quincaillerie", "informatique", "autre"];
+  var LOCATION_ZONES = [
+    { zone: "A", count: 20 },
+    { zone: "B", count: 20 },
+    { zone: "C", count: 20 },
+    { zone: "D", count: 20 },
+    { zone: "E", count: 20 }
+  ];
+
+  function defaultLocationSuggestions() {
+    var out = [];
+    LOCATION_ZONES.forEach(function (z) {
+      for (var i = 1; i <= z.count; i++) out.push(z.zone + i);
+    });
+    return out;
+  }
+
+  /* ===================== Utilities ===================== */
+  function escapeHtml(s) {
+    return String(s || "").replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function statusBadge(status) {
+    if (status === "analyzed") return '<span class="badge cyan">✓ Analysé</span>';
+    if (status === "error") return '<span class="badge red">⚠ Erreur IA</span>';
+    return '<span class="badge orange">⏳ En attente</span>';
+  }
+  function statusText(item) {
+    if (item.status === "analyzed") return "Décrit par l'IA, modifiable ci-dessous.";
+    if (item.status === "error") return item.analysis_error || "L'analyse IA a échoué — réessaie.";
+    return "Pas encore analysé par l'IA.";
+  }
+
+  var photoUrlCache = {};
+  async function photoUrl(path) {
+    if (photoUrlCache[path]) return photoUrlCache[path];
+    var result = await supabase.storage.from(PHOTO_BUCKET).createSignedUrl(path, 21600);
+    var url = result.data && result.data.signedUrl;
+    if (url) photoUrlCache[path] = url;
+    return url;
+  }
+
+  function resizeToJpeg(file, maxDim) {
+    return createImageBitmap(file).then(function (bitmap) {
+      var scale = Math.min(1, maxDim / Math.max(bitmap.width, bitmap.height));
+      var w = Math.max(1, Math.round(bitmap.width * scale));
+      var h = Math.max(1, Math.round(bitmap.height * scale));
+      var canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(bitmap, 0, 0, w, h);
+      return new Promise(function (resolve) {
+        canvas.toBlob(function (blob) { resolve(blob); }, "image/jpeg", 0.85);
+      });
+    });
+  }
+
+  /* ===================== Screens ===================== */
+  var screens = ["screen-login", "screen-app", "screen-add", "screen-detail"];
+  function showScreen(id) {
+    screens.forEach(function (s) {
+      document.getElementById(s).classList.toggle("hidden", s !== id);
+    });
+  }
+
+  var currentUser = null;
+  var itemsCache = [];
+
+  /* ===================== Boot ===================== */
+  async function boot() {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch(function () {});
+    }
+    var sessionResult = await supabase.auth.getSession();
+    var session = sessionResult.data && sessionResult.data.session;
+    if (session && session.user) {
+      currentUser = session.user;
+      await enterApp();
+    } else {
+      showScreen("screen-login");
+    }
+  }
+
+  /* ===================== Login ===================== */
+  document.getElementById("login-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var errEl = document.getElementById("login-error");
+    errEl.textContent = "";
+    var pass = document.getElementById("login-pass").value;
+    var submitBtn = e.target.querySelector("button[type=submit]");
+    submitBtn.disabled = true;
+    var result = await supabase.auth.signInWithPassword({ email: APP_LOGIN_EMAIL, password: pass });
+    submitBtn.disabled = false;
+    if (result.error) { errEl.textContent = "Mot de passe incorrect."; return; }
+    currentUser = result.data.user;
+    document.getElementById("login-form").reset();
+    await enterApp();
+  });
+
+  document.querySelectorAll("[data-toggle-pass]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var input = document.getElementById(btn.getAttribute("data-toggle-pass"));
+      var showing = input.type === "text";
+      input.type = showing ? "password" : "text";
+      btn.textContent = showing ? "Afficher" : "Masquer";
+    });
+  });
+
+  document.getElementById("btn-logout").addEventListener("click", async function () {
+    await supabase.auth.signOut();
+    location.reload();
+  });
+
+  /* ===================== App shell ===================== */
+  async function enterApp() {
+    var suggestions = defaultLocationSuggestions();
+    ["location-suggestions", "location-suggestions-2"].forEach(function (id) {
+      document.getElementById(id).innerHTML = suggestions.map(function (l) { return "<option>" + escapeHtml(l) + "</option>"; }).join("");
+    });
+    document.getElementById("category-suggestions").innerHTML = DEFAULT_CATEGORIES.map(function (c) { return "<option>" + escapeHtml(c) + "</option>"; }).join("");
+    showScreen("screen-app");
+    await refreshList();
+  }
+
+  async function refreshList() {
+    var result = await supabase.from("materiel_items").select("*").order("created_at", { ascending: false });
+    itemsCache = result.data || [];
+    updateFilterOptions();
+    renderGrid();
+  }
+
+  function updateFilterOptions() {
+    var cats = {}, locs = {};
+    itemsCache.forEach(function (it) {
+      if (it.category) cats[it.category] = true;
+      if (it.location) locs[it.location] = true;
+    });
+    var catSel = document.getElementById("filter-category");
+    var locSel = document.getElementById("filter-location");
+    var prevCat = catSel.value, prevLoc = locSel.value;
+    catSel.innerHTML = '<option value="">Toutes catégories</option>' +
+      Object.keys(cats).sort().map(function (c) { return '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + "</option>"; }).join("");
+    locSel.innerHTML = '<option value="">Tous emplacements</option>' +
+      Object.keys(locs).sort().map(function (l) { return '<option value="' + escapeHtml(l) + '">' + escapeHtml(l) + "</option>"; }).join("");
+    catSel.value = prevCat; locSel.value = prevLoc;
+  }
+
+  document.getElementById("filter-category").addEventListener("change", renderGrid);
+  document.getElementById("filter-location").addEventListener("change", renderGrid);
+
+  function renderGrid() {
+    var grid = document.getElementById("grid");
+    var catFilter = document.getElementById("filter-category").value;
+    var locFilter = document.getElementById("filter-location").value;
+    var items = itemsCache.filter(function (it) {
+      if (catFilter && it.category !== catFilter) return false;
+      if (locFilter && it.location !== locFilter) return false;
+      return true;
+    });
+    if (items.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><span class="emoji">📦</span>Aucun objet pour l\'instant.<br>Appuie sur ＋ pour ajouter ton premier objet.</div>';
+      return;
+    }
+    grid.innerHTML = items.map(function (it) {
+      return '<div class="item-card" data-id="' + it.id + '">' +
+        '<div class="thumb" data-thumb-for="' + it.id + '">📦</div>' +
+        '<div class="body">' +
+          '<div class="name">' + escapeHtml(it.label || "(sans nom)") + "</div>" +
+          '<div class="meta">' +
+            (it.category ? '<span class="badge gray">' + escapeHtml(it.category) + "</span>" : "") +
+            (it.location ? '<span class="badge cyan">' + escapeHtml(it.location) + "</span>" : "") +
+            (it.status !== "analyzed" ? statusBadge(it.status) : "") +
+          "</div>" +
+        "</div>" +
+      "</div>";
+    }).join("");
+    grid.querySelectorAll(".item-card").forEach(function (card) {
+      card.addEventListener("click", function () { openDetail(card.getAttribute("data-id")); });
+    });
+    items.forEach(function (it) {
+      var thumbEl = grid.querySelector('[data-thumb-for="' + it.id + '"]');
+      if (!thumbEl || !it.photo_paths || it.photo_paths.length === 0) return;
+      photoUrl(it.photo_paths[0]).then(function (url) {
+        if (url) thumbEl.innerHTML = '<img src="' + url + '" alt="">';
+      });
+    });
+  }
+
+  document.getElementById("btn-add").addEventListener("click", openAddScreen);
+
+  /* ===================== Add item ===================== */
+  var pendingPhotos = []; // array of Blob (already resized to JPEG)
+
+  function renderAddPhotoStrip() {
+    var strip = document.getElementById("add-photo-strip");
+    var thumbsHtml = pendingPhotos.map(function (blob, i) {
+      var url = URL.createObjectURL(blob);
+      return '<div class="photo-thumb"><img src="' + url + '" alt=""><button type="button" class="remove" data-remove="' + i + '">✕</button></div>';
+    }).join("");
+    strip.innerHTML = thumbsHtml + '<button type="button" class="add-photo-btn" id="btn-add-photo">📷</button>';
+    document.getElementById("btn-add-photo").addEventListener("click", function () {
+      document.getElementById("photo-input").click();
+    });
+    strip.querySelectorAll("[data-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        pendingPhotos.splice(parseInt(btn.getAttribute("data-remove"), 10), 1);
+        renderAddPhotoStrip();
+      });
+    });
+  }
+
+  document.getElementById("photo-input").addEventListener("change", async function (e) {
+    var files = Array.prototype.slice.call(e.target.files || []);
+    e.target.value = "";
+    for (var i = 0; i < files.length; i++) {
+      try {
+        var blob = await resizeToJpeg(files[i], MAX_PHOTO_DIM);
+        if (blob) pendingPhotos.push(blob);
+      } catch (err) { /* skip unreadable file */ }
+    }
+    renderAddPhotoStrip();
+  });
+
+  function openAddScreen() {
+    pendingPhotos = [];
+    document.getElementById("f-add-label").value = "";
+    document.getElementById("f-add-location").value = "";
+    document.getElementById("add-error").textContent = "";
+    renderAddPhotoStrip();
+    showScreen("screen-add");
+  }
+
+  document.getElementById("btn-add-cancel").addEventListener("click", function () { showScreen("screen-app"); });
+
+  document.getElementById("btn-add-save").addEventListener("click", async function () {
+    var errEl = document.getElementById("add-error");
+    errEl.textContent = "";
+    var label = document.getElementById("f-add-label").value.trim();
+    var location_ = document.getElementById("f-add-location").value.trim();
+    if (pendingPhotos.length === 0) { errEl.textContent = "Ajoute au moins une photo."; return; }
+    if (!label) { errEl.textContent = "Donne un nom ou une courte phrase."; return; }
+
+    var saveBtn = document.getElementById("btn-add-save");
+    saveBtn.disabled = true;
+    saveBtn.textContent = "Enregistrement…";
+
+    try {
+      var insertResult = await supabase.from("materiel_items").insert({
+        user_id: currentUser.id, label: label, location: location_, status: "pending"
+      }).select().single();
+      if (insertResult.error) throw insertResult.error;
+      var item = insertResult.data;
+
+      var paths = [];
+      for (var i = 0; i < pendingPhotos.length; i++) {
+        var path = currentUser.id + "/" + item.id + "/" + Date.now() + "-" + i + ".jpg";
+        var uploadResult = await supabase.storage.from(PHOTO_BUCKET).upload(path, pendingPhotos[i], { contentType: "image/jpeg" });
+        if (!uploadResult.error) paths.push(path);
+      }
+      await supabase.from("materiel_items").update({ photo_paths: paths }).eq("id", item.id);
+
+      showScreen("screen-app");
+      await refreshList();
+
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Enregistrer";
+
+      // Fire the AI analysis after leaving the screen — the item already shows as "pending"
+      // in the grid, and refreshList() below picks up the result once it lands.
+      supabase.functions.invoke("analyze-item", { body: { item_id: item.id } }).finally(refreshList);
+    } catch (err) {
+      errEl.textContent = "Erreur : " + (err && err.message ? err.message : "impossible d'enregistrer.");
+      saveBtn.disabled = false;
+      saveBtn.textContent = "Enregistrer";
+    }
+  });
+
+  /* ===================== Item detail ===================== */
+  var currentDetailItem = null;
+  var currentSpecs = [];
+
+  function renderDetailSpecs() {
+    var container = document.getElementById("detail-specs");
+    if (currentSpecs.length === 0) {
+      container.innerHTML = '<p class="hint" style="margin-bottom:16px;">Aucune caractéristique enregistrée.</p>';
+      return;
+    }
+    container.innerHTML = currentSpecs.map(function (row, i) {
+      return '<div class="specs-row">' +
+        '<input class="spec-key" data-spec-key="' + i + '" placeholder="ex: tension" value="' + escapeHtml(row.key) + '">' +
+        '<input class="spec-val" data-spec-val="' + i + '" placeholder="ex: 19V" value="' + escapeHtml(row.value) + '">' +
+        '<button type="button" data-spec-remove="' + i + '">✕</button>' +
+      "</div>";
+    }).join("");
+    container.querySelectorAll("[data-spec-key]").forEach(function (inp) {
+      inp.addEventListener("input", function () { currentSpecs[parseInt(inp.getAttribute("data-spec-key"), 10)].key = inp.value; });
+    });
+    container.querySelectorAll("[data-spec-val]").forEach(function (inp) {
+      inp.addEventListener("input", function () { currentSpecs[parseInt(inp.getAttribute("data-spec-val"), 10)].value = inp.value; });
+    });
+    container.querySelectorAll("[data-spec-remove]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        currentSpecs.splice(parseInt(btn.getAttribute("data-spec-remove"), 10), 1);
+        renderDetailSpecs();
+      });
+    });
+  }
+
+  document.getElementById("btn-add-spec").addEventListener("click", function () {
+    currentSpecs.push({ key: "", value: "" });
+    renderDetailSpecs();
+  });
+
+  async function openDetail(id) {
+    var item = itemsCache.filter(function (it) { return it.id === id; })[0];
+    if (!item) return;
+    currentDetailItem = item;
+    currentSpecs = Object.keys(item.specs || {}).map(function (k) { return { key: k, value: item.specs[k] }; });
+
+    document.getElementById("f-detail-label").value = item.label || "";
+    document.getElementById("f-detail-category").value = item.category || "";
+    document.getElementById("f-detail-location").value = item.location || "";
+    document.getElementById("f-detail-description").value = item.description || "";
+    document.getElementById("detail-status-badge").innerHTML = statusBadge(item.status);
+    document.getElementById("detail-status-text").textContent = statusText(item);
+    renderDetailSpecs();
+
+    var strip = document.getElementById("detail-photo-strip");
+    strip.innerHTML = (item.photo_paths || []).map(function (_, i) {
+      return '<div class="photo-thumb" data-detail-photo="' + i + '"></div>';
+    }).join("") || '<p class="hint">Aucune photo.</p>';
+    (item.photo_paths || []).forEach(function (path, i) {
+      photoUrl(path).then(function (url) {
+        if (!url) return;
+        var el = strip.querySelector('[data-detail-photo="' + i + '"]');
+        if (el) {
+          el.innerHTML = '<img src="' + url + '" alt="">';
+          el.addEventListener("click", function () { openLightbox(url); });
+          el.style.cursor = "zoom-in";
+        }
+      });
+    });
+
+    showScreen("screen-detail");
+  }
+
+  function openLightbox(url) {
+    var box = document.createElement("div");
+    box.className = "lightbox";
+    box.innerHTML = '<img src="' + url + '" alt="">';
+    box.addEventListener("click", function () { box.remove(); });
+    document.body.appendChild(box);
+  }
+
+  document.getElementById("btn-detail-back").addEventListener("click", function () { showScreen("screen-app"); });
+
+  document.getElementById("btn-detail-save").addEventListener("click", async function () {
+    if (!currentDetailItem) return;
+    var specsObj = {};
+    currentSpecs.forEach(function (row) { if (row.key.trim()) specsObj[row.key.trim()] = row.value; });
+    var patch = {
+      label: document.getElementById("f-detail-label").value.trim(),
+      category: document.getElementById("f-detail-category").value.trim(),
+      location: document.getElementById("f-detail-location").value.trim(),
+      description: document.getElementById("f-detail-description").value.trim(),
+      specs: specsObj
+    };
+    await supabase.from("materiel_items").update(patch).eq("id", currentDetailItem.id);
+    showScreen("screen-app");
+    await refreshList();
+  });
+
+  document.getElementById("btn-reanalyze").addEventListener("click", async function () {
+    if (!currentDetailItem) return;
+    if (!confirm("Relancer l'analyse IA va remplacer la description, la catégorie et les caractéristiques actuelles. Continuer ?")) return;
+    var btn = document.getElementById("btn-reanalyze");
+    btn.disabled = true;
+    btn.textContent = "Analyse en cours…";
+    await supabase.functions.invoke("analyze-item", { body: { item_id: currentDetailItem.id } });
+    btn.disabled = false;
+    btn.textContent = "🤖 Ré-analyser avec l'IA";
+    await refreshList();
+    openDetail(currentDetailItem.id);
+  });
+
+  document.getElementById("btn-delete-item").addEventListener("click", async function () {
+    if (!currentDetailItem) return;
+    if (!confirm("Supprimer définitivement cet objet et ses photos ?")) return;
+    var paths = currentDetailItem.photo_paths || [];
+    if (paths.length > 0) await supabase.storage.from(PHOTO_BUCKET).remove(paths);
+    await supabase.from("materiel_items").delete().eq("id", currentDetailItem.id);
+    showScreen("screen-app");
+    await refreshList();
+  });
+
+  /* ===================== AI search ===================== */
+  document.getElementById("search-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var query = document.getElementById("search-input").value.trim();
+    if (!query) return;
+    openSearchOverlay(query);
+  });
+
+  function openSearchOverlay(query) {
+    var overlay = document.createElement("div");
+    overlay.className = "search-overlay";
+    overlay.innerHTML =
+      '<div class="topbar"><button class="icon-btn" id="btn-search-close">← Retour</button><h1 style="font-size:1.05rem;">' + escapeHtml(query) + '</h1><span style="width:70px;"></span></div>' +
+      '<div class="center-loading" id="search-loading"><div class="spinner"></div>L\'IA compare tes objets…</div>' +
+      '<div class="search-results hidden" id="search-results"></div>';
+    document.body.appendChild(overlay);
+    overlay.querySelector("#btn-search-close").addEventListener("click", function () { overlay.remove(); });
+
+    supabase.functions.invoke("search-items", { body: { query: query } }).then(async function (res) {
+      var loadingEl = overlay.querySelector("#search-loading");
+      var resultsEl = overlay.querySelector("#search-results");
+      var matches = (res.data && res.data.matches) || [];
+      loadingEl.classList.add("hidden");
+      resultsEl.classList.remove("hidden");
+      if (matches.length === 0) {
+        resultsEl.innerHTML = '<div class="empty-state"><span class="emoji">🤷</span>Aucun objet correspondant trouvé.</div>';
+        return;
+      }
+      resultsEl.innerHTML = matches.map(function (m) {
+        var item = itemsCache.filter(function (it) { return it.id === m.item_id; })[0];
+        if (!item) return "";
+        var confBadge = m.confiance === "haute" ? "cyan" : (m.confiance === "moyenne" ? "orange" : "gray");
+        return '<div class="result-card" data-id="' + item.id + '">' +
+          '<div class="thumb" data-result-thumb="' + item.id + '">📦</div>' +
+          '<div class="info">' +
+            '<div class="name">' + escapeHtml(item.label || "(sans nom)") + "</div>" +
+            '<div class="meta">' +
+              (item.location ? '<span class="badge cyan">' + escapeHtml(item.location) + "</span>" : "") +
+              '<span class="badge ' + confBadge + '">confiance ' + escapeHtml(m.confiance) + "</span>" +
+            "</div>" +
+            '<div class="reason">' + escapeHtml(m.raison) + "</div>" +
+          "</div>" +
+        "</div>";
+      }).join("");
+      resultsEl.querySelectorAll(".result-card").forEach(function (card) {
+        card.addEventListener("click", function () { overlay.remove(); openDetail(card.getAttribute("data-id")); });
+      });
+      matches.forEach(function (m) {
+        var item = itemsCache.filter(function (it) { return it.id === m.item_id; })[0];
+        if (!item || !item.photo_paths || item.photo_paths.length === 0) return;
+        var thumbEl = resultsEl.querySelector('[data-result-thumb="' + item.id + '"]');
+        if (!thumbEl) return;
+        photoUrl(item.photo_paths[0]).then(function (url) {
+          if (url) thumbEl.innerHTML = '<img src="' + url + '" alt="">';
+        });
+      });
+    }).catch(function () {
+      overlay.querySelector("#search-loading").innerHTML = '<div class="empty-state"><span class="emoji">⚠️</span>La recherche a échoué. Réessaie.</div>';
+    });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
