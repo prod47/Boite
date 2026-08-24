@@ -8,11 +8,23 @@ import Anthropic from "npm:@anthropic-ai/sdk@0.120.0";
 import { zodOutputFormat } from "npm:@anthropic-ai/sdk@0.120.0/helpers/zod";
 import { z } from "npm:zod@3";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
-import { CORS_HEADERS, jsonResponse } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+
+// The app is served from a static host (GitHub Pages), a different origin than this function,
+// so every response needs these to be readable client-side.
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
+  });
+}
 
 const MODEL = "claude-sonnet-5";
 const PHOTO_BUCKET = "materiel-photos";
