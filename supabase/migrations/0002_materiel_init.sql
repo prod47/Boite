@@ -33,11 +33,11 @@ drop policy if exists "own materiel items only" on public.materiel_items;
 create policy "own materiel items only" on public.materiel_items
   for all
   using (
-    auth.email() = ANY (ARRAY['studio-materiel@inventaire.local'])
+    lower(auth.email()) = ANY (ARRAY['studio-materiel@inventaire.local'])
     and user_id = auth.uid()
   )
   with check (
-    auth.email() = ANY (ARRAY['studio-materiel@inventaire.local'])
+    lower(auth.email()) = ANY (ARRAY['studio-materiel@inventaire.local'])
     and user_id = auth.uid()
   );
 
@@ -68,11 +68,11 @@ create policy "own materiel photos only" on storage.objects
   for all
   using (
     bucket_id = 'materiel-photos'
-    and auth.email() = ANY (ARRAY['studio-materiel@inventaire.local'])
+    and lower(auth.email()) = ANY (ARRAY['studio-materiel@inventaire.local'])
     and (storage.foldername(name))[1] = auth.uid()::text
   )
   with check (
     bucket_id = 'materiel-photos'
-    and auth.email() = ANY (ARRAY['studio-materiel@inventaire.local'])
+    and lower(auth.email()) = ANY (ARRAY['studio-materiel@inventaire.local'])
     and (storage.foldername(name))[1] = auth.uid()::text
   );
