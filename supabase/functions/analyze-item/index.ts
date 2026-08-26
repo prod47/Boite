@@ -5,16 +5,12 @@
 // function only ever sees rows/photos the caller already owns.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk@0.120.0";
-import { zodOutputFormat } from "npm:@anthropic-ai/sdk@0.120.0/helpers/zod";
-import { z } from "npm:zod@3";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
-// The app is served from a static host (GitHub Pages), a different origin than this function,
-// so every response needs these to be readable client-side.
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -29,20 +25,43 @@ function jsonResponse(body: unknown, status = 200): Response {
 const MODEL = "claude-sonnet-5";
 const PHOTO_BUCKET = "materiel-photos";
 
-const AnalysisSchema = z.object({
-  description: z.string().describe(
-    "Description utile en français (1 à 3 phrases) : ce que c'est, à quoi ça sert, état apparent."
-  ),
-  category: z.string().describe(
-    "Catégorie courte en français, ex: caméra, objectif, éclairage, alimentation, câble, support/bras, " +
-    "trépied, audio, accessoire, quincaillerie, informatique, autre."
-  ),
-  specs: z.record(z.string()).describe(
-    "Caractéristiques techniques clé/valeur, en français, uniquement celles clairement lisibles sur une " +
-    "étiquette/plaque ou certaines (ex: tension, ampérage, connecteur, marque, modèle, dimensions, poids). " +
-    "Objet vide si rien n'est identifiable — ne rien inventer."
-  ),
-});
+// Plain JSON Schema instead of a Zod schema: structured outputs require every object to set
+// additionalProperties:false, which a free-form key/value record can't do. specs is modeled as
+// an array of {key, value} pairs instead — still any label the model wants, just shaped so the
+// schema stays valid — and turned back into an object before it's stored.
+const ANALYSIS_SCHEMA = {
+  type: "object",
+  properties: {
+    description: {
+      type: "string",
+      description: "Description utile en français (1 à 3 phrases) : ce que c'est, à quoi ça sert, état apparent.",
+    },
+    category: {
+      type: "string",
+      description:
+        "Catégorie courte en français, ex: caméra, objectif, éclairage, alimentation, câble, support/bras, " +
+        "trépied, audio, accessoire, quincaillerie, informatique, autre.",
+    },
+    specs: {
+      type: "array",
+      description:
+        "Caractéristiques techniques, en français, uniquement celles clairement lisibles sur une " +
+        "étiquette/plaque ou certaines (ex: tension, ampérage, connecteur, marque, modèle, dimensions, poids). " +
+        "Liste vide si rien n'est identifiable — ne rien inventer.",
+      items: {
+        type: "object",
+        properties: {
+          key: { type: "string", description: "Nom de la caractéristique, ex: tension." },
+          value: { type: "string", description: "Valeur, ex: 19V." },
+        },
+        required: ["key", "value"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["description", "category", "specs"],
+  additionalProperties: false,
+};
 
 const SYSTEM_PROMPT =
   "Tu aides à cataloguer du matériel de tournage et de studio TV (caméras, objectifs, éclairage, pieds, " +
@@ -103,7 +122,7 @@ Deno.serve(async (req) => {
   try {
     const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-    const response = await anthropic.messages.parse({
+    const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
@@ -121,27 +140,35 @@ Deno.serve(async (req) => {
           ],
         },
       ],
-      output_config: { format: zodOutputFormat(AnalysisSchema) },
+      output_config: { format: { type: "json_schema", schema: ANALYSIS_SCHEMA } },
     });
 
-    const parsed = response.parsed_output;
-    if (!parsed) {
+    const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
+    if (!textBlock) {
       await supabase.from("materiel_items").update({
         status: "error",
-        analysis_error: "réponse IA non exploitable",
+        analysis_error: `pas de réponse texte (stop_reason: ${response.stop_reason})`,
       }).eq("id", itemId);
-      return jsonResponse({ error: "parsing failed" }, 502);
+      return jsonResponse({ error: "no text block in response" }, 502);
     }
+
+    const parsed = JSON.parse(textBlock.text) as {
+      description: string;
+      category: string;
+      specs: { key: string; value: string }[];
+    };
+    const specsObject: Record<string, string> = {};
+    for (const row of parsed.specs) specsObject[row.key] = row.value;
 
     await supabase.from("materiel_items").update({
       description: parsed.description,
       category: parsed.category,
-      specs: parsed.specs,
+      specs: specsObject,
       status: "analyzed",
       analysis_error: null,
     }).eq("id", itemId);
 
-    return jsonResponse({ ok: true, ...parsed });
+    return jsonResponse({ ok: true, description: parsed.description, category: parsed.category, specs: specsObject });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await supabase.from("materiel_items").update({

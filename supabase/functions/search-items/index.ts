@@ -5,8 +5,6 @@
 // the catalog to their own rows.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import Anthropic from "npm:@anthropic-ai/sdk@0.120.0";
-import { zodOutputFormat } from "npm:@anthropic-ai/sdk@0.120.0/helpers/zod";
-import { z } from "npm:zod@3";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -14,8 +12,6 @@ const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
 
 const MODEL = "claude-sonnet-5";
 
-// The app is served from a static host (GitHub Pages), a different origin than this function,
-// so every response needs these to be readable client-side.
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -27,15 +23,30 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-const ResultSchema = z.object({
-  matches: z.array(
-    z.object({
-      item_id: z.string(),
-      confiance: z.enum(["haute", "moyenne", "faible"]),
-      raison: z.string().describe("Justification brève (une phrase) de la pertinence de cet objet."),
-    })
-  ).describe("0 à 6 objets les plus pertinents, triés du meilleur au moins bon."),
-});
+// Plain JSON Schema (not Zod) — see the note in analyze-item/index.ts: structured outputs
+// require additionalProperties:false on every object, which the Zod helper didn't handle
+// cleanly for this app's schemas.
+const RESULT_SCHEMA = {
+  type: "object",
+  properties: {
+    matches: {
+      type: "array",
+      description: "0 à 6 objets les plus pertinents, triés du meilleur au moins bon.",
+      items: {
+        type: "object",
+        properties: {
+          item_id: { type: "string" },
+          confiance: { type: "string", enum: ["haute", "moyenne", "faible"] },
+          raison: { type: "string", description: "Justification brève (une phrase) de la pertinence de cet objet." },
+        },
+        required: ["item_id", "confiance", "raison"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["matches"],
+  additionalProperties: false,
+};
 
 const SYSTEM_PROMPT =
   "Tu aides à retrouver du matériel de tournage/studio TV dans un inventaire. On te donne la liste " +
@@ -84,7 +95,7 @@ Deno.serve(async (req) => {
   try {
     const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-    const response = await anthropic.messages.parse({
+    const response = await anthropic.messages.create({
       model: MODEL,
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
@@ -96,11 +107,16 @@ Deno.serve(async (req) => {
             `Demande de l'utilisateur : "${query}"`,
         },
       ],
-      output_config: { format: zodOutputFormat(ResultSchema) },
+      output_config: { format: { type: "json_schema", schema: RESULT_SCHEMA } },
     });
 
-    const parsed = response.parsed_output;
-    return jsonResponse({ matches: parsed ? parsed.matches : [] });
+    const textBlock = response.content.find((b): b is Anthropic.TextBlock => b.type === "text");
+    if (!textBlock) return jsonResponse({ matches: [] });
+
+    const parsed = JSON.parse(textBlock.text) as {
+      matches: { item_id: string; confiance: string; raison: string }[];
+    };
+    return jsonResponse({ matches: parsed.matches });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return jsonResponse({ error: message }, 502);
