@@ -1,4 +1,4 @@
-const CACHE = "materiel-v4";
+const CACHE = "materiel-v5";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./apple-touch-icon-v2.png", "./favicon.png"];
 
 self.addEventListener("install", (event) => {
