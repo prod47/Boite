@@ -144,3 +144,4 @@ a garder en tete, independants du fonctionnement technique du script :
 | Erreur ffmpeg / pas de fusion video+audio | Verifie que ffmpeg est installe et dans le PATH (`ffmpeg -version` dans un terminal) |
 | Une video precise refuse de se telecharger | Mets a jour yt-dlp (`pip install -U yt-dlp`), regarde le message d'erreur dans le journal CSV |
 | "Aucun lien YouTube trouve" | Verifie que le fichier contient bien des liens `youtube.com` ou `youtu.be` |
+| Premiere Pro refuse d'importer le MP4 ("unsupported compression type") alors que la video se lit normalement ailleurs | Le fichier est en VP9/AV1 (frequent au-dela de 1080p sur YouTube), pas toujours lu par Premiere. Le script telecharge desormais en priorite du H.264, compatible partout - remplace juste `download_videos.py` par la derniere version puis retelecharge la video concernee. |

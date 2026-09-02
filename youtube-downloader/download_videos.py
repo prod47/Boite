@@ -107,9 +107,19 @@ def extract_urls_from_folder(folder: Path) -> list[str]:
     return ordered
 
 
+# Privilegie le H.264 (avc1) + AAC : le seul codec garanti lisible tel quel
+# dans Adobe Premiere Pro sans transcodage. Les tres hautes resolutions
+# (1440p/4K) de YouTube ne sont souvent disponibles qu'en VP9/AV1, que
+# Premiere refuse parfois d'importer ("unsupported compression type") -
+# on accepte donc de plafonner a 1080p pour garantir un import direct.
+FORMAT_PREMIERE_COMPATIBLE = (
+    "bv*[vcodec^=avc1]+ba[acodec^=mp4a]/b[vcodec^=avc1]/bv*+ba/b"
+)
+
+
 def build_ydl_opts(output_dir: Path, allow_playlist: bool, cookies_from_browser: str | None):
     opts = {
-        "format": "bv*+ba/b",
+        "format": FORMAT_PREMIERE_COMPATIBLE,
         "merge_output_format": "mp4",
         "outtmpl": str(output_dir / "%(title)s [%(id)s].%(ext)s"),
         "windowsfilenames": True,
