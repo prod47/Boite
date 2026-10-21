@@ -127,6 +127,11 @@ def build_ydl_opts(output_dir: Path, allow_playlist: bool, cookies_from_browser:
         "ignoreerrors": False,
         "quiet": False,
         "no_warnings": False,
+        # autorise yt-dlp a telecharger le script resolveur de defi JS
+        # (signature/n) depuis GitHub : sans ca, certaines videos echouent
+        # avec "Signature solving failed" / "video is not available" meme
+        # avec un runtime JS (deno) installe
+        "remote_components": ["ejs:github"],
     }
     if cookies_from_browser:
         # reutilise la session YouTube du navigateur : evite les blocages
