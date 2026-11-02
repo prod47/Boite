@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chrono Prises</title>
+<meta name="description" content="Chrono de tournage avec marqueurs de prises en couleur, exportables en XML pour Premiere Pro.">
+<meta name="theme-color" content="#101214">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Chrono">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chivo+Mono:wght@400;600&family=Archivo:wdth,wght@75..100,500..800&display=swap">
+<style>
+/* One-screen set tool — take tabs, timecode slab, transport, 2×3 marker pads, take log. Dark on purpose (used on set). */
+:root{
+  --bg:#101214; --panel:#181b1f; --line:#2a2f35; --fg:#eceff2; --muted:#8b939c;
+  --rec:#e5483f; --play:#3fbf74; --warn:#d0a12b;
+  --mono:"Chivo Mono",ui-monospace,Menlo,monospace;
+  --ui:"Archivo",-apple-system,"Helvetica Neue",Arial,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);-webkit-tap-highlight-color:transparent;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+[hidden]{display:none!important}
+button{font-family:var(--ui);cursor:pointer;color:inherit}
+button:disabled{opacity:.5}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+input,select{font-size:16px}
+.app{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px;padding-block:12px 28px}
+
+/* Login */
+.login{max-width:380px;margin:0 auto;min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:18px;padding-block:40px}
+.login h1{margin:0;font:800 2.4rem/1 var(--ui);font-stretch:80%;text-transform:uppercase;letter-spacing:.01em}
+.login h1 span{display:block;font:600 .8rem var(--mono);letter-spacing:.18em;color:var(--muted);margin-top:10px}
+.login form{display:flex;flex-direction:column;gap:10px}
+.login label{font:600 .72rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.pw{display:flex;gap:8px}
+.pw input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--fg);padding:14px 12px}
+.pw button{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:0 12px;font:600 .8rem var(--ui);color:var(--muted)}
+.enter{border:0;border-radius:12px;padding:16px;font:800 1.05rem var(--ui);font-stretch:85%;letter-spacing:.04em;text-transform:uppercase;background:var(--play);color:#06150c}
+.err{min-height:1.2em;margin:0;color:var(--rec);font-weight:600;font-size:.9rem}
+.hint{margin:0;color:var(--muted);font-size:.85rem;line-height:1.45}
+
+header{display:flex;align-items:center;gap:8px}
+.sess{flex:1;min-width:0;background:transparent;border:0;color:var(--fg);font:700 16px/1.2 var(--ui);font-stretch:85%;padding:6px 0;border-bottom:1px dashed var(--line);border-radius:0}
+.sess:focus{outline:none;border-bottom-color:var(--muted)}
+.chip{font:600 .7rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:var(--panel);white-space:nowrap}
+.role{color:var(--fg)}
+.role.guest{color:var(--warn);border-color:var(--warn)}
+
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px;gap:3px}
+.seg button{border:0;background:none;border-radius:9px;padding:10px;font:700 .9rem var(--ui);color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.ro{border:1px dashed var(--warn);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:.85rem;font-weight:600;margin:0}
+
+.tabs{display:flex;align-items:stretch;gap:8px}
+.tablist{flex:1;min-width:0;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding-bottom:2px}
+.tablist::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;max-width:11em;border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:10px;padding:10px 14px;font:700 .95rem var(--ui);font-stretch:85%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:7px}
+.tab[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tab .rd{width:7px;height:7px;border-radius:50%;background:var(--rec);flex:0 0 auto}
+.add{flex:0 0 auto;width:52px;border:0;border-radius:10px;background:var(--play);color:#06150c;font:500 2rem/1 var(--ui)}
+.takebar{display:flex;gap:8px;align-items:center}
+.takename{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--fg);font:700 16px var(--ui);padding:10px 12px}
+.trash{flex:0 0 auto;width:46px;height:44px;border:1px solid var(--line);background:var(--panel);border-radius:10px;display:grid;place-items:center;color:var(--muted)}
+.trash svg{width:20px;height:20px}
+.confirm{border:1px solid var(--rec);background:#2a1312;border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.confirm p{margin:0;font-weight:600;line-height:1.4}
+.confirm div{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.confirm button{border-radius:10px;padding:12px;font:700 .95rem var(--ui);border:1px solid var(--line);background:var(--panel)}
+.confirm .yes{background:var(--rec);border-color:var(--rec);color:#1a0302}
+
+.slab{background:#050607;border:1px solid var(--line);border-radius:14px;padding:18px 14px 14px;display:flex;flex-direction:column;align-items:center;gap:6px;overflow:hidden}
+.state{font:600 .7rem var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;text-align:center}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--line);flex:0 0 auto}
+.running .dot{background:var(--rec);animation:blink 1s steps(1) infinite}
+.running .state{color:var(--rec)}
+@keyframes blink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.running .dot{animation:none}}
+.tc{font:600 clamp(3rem,17vw,5.4rem)/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.tc .sep{color:var(--muted)}
+.sub{font:400 .74rem var(--mono);color:var(--muted);text-align:center}
+
+.transport{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+.go{border:0;border-radius:12px;padding:16px;font:800 1.1rem var(--ui);font-stretch:85%;letter-spacing:.04em;text-transform:uppercase;background:var(--play);color:#06150c}
+.go.stop{background:var(--rec);color:#1a0302}
+.reset{border:1px solid var(--line);background:var(--panel);border-radius:12px;font:700 .9rem var(--ui);text-transform:uppercase;letter-spacing:.04em}
+.reset.armed{border-color:var(--rec);color:var(--rec)}
+
+.pads{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pad{--c:#888;border:0;border-radius:14px;min-height:84px;padding:12px;text-align:left;display:flex;flex-direction:column;justify-content:space-between;
+  background:var(--c);color:#0b0c0d;box-shadow:inset 0 -4px 0 rgba(0,0,0,.25);transition:transform .08s}
+.pad:active{transform:scale(.97)}
+.pad b{font:800 1.15rem/1.1 var(--ui);font-stretch:80%;text-transform:uppercase;letter-spacing:.01em;text-wrap:balance}
+.pad span{font:600 .72rem var(--mono);opacity:.75}
+.pad.flash{animation:flash .35s}
+@keyframes flash{0%{filter:brightness(1.6)}100%{filter:none}}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);font:600 .85rem var(--ui);padding:10px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:calc(100% - 32px)}
+.toast.on{opacity:1}
+
+h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:6px 0 0;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.log{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel)}
+.log li{display:grid;grid-template-columns:6px 5.6em 1fr auto;align-items:center;gap:10px;padding:10px 10px 10px 0;border-top:1px solid var(--line)}
+.log li:first-child{border-top:0}
+.log .bar{align-self:stretch;background:var(--c)}
+.log .t{font:600 .9rem var(--mono);font-variant-numeric:tabular-nums}
+.log .n{min-width:0;font-weight:600;font-size:.92rem}
+.log .n small{display:block;color:var(--muted);font:400 .72rem var(--mono)}
+.del{border:0;background:none;color:var(--muted);font-size:1.2rem;padding:4px 8px}
+.log .empty{display:block;padding:18px;color:var(--muted);font-size:.9rem;text-align:center}
+
+.dl{align-self:center;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:9px 18px;font:700 .8rem var(--ui);color:var(--muted);margin-top:4px}
+.sync{margin:0;text-align:center;font:500 .72rem var(--mono);color:var(--muted)}
+.sync::before{content:"● "}
+.sync.ok::before{color:var(--play)}
+.sync.wait::before{color:var(--warn)}
+.sync.bad::before{color:var(--rec)}
+
+.sheet{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.row input,.row select,.field select{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px;font:500 16px var(--ui);min-width:0;width:100%}
+.field{display:flex;flex-direction:column;gap:6px;font:600 .72rem var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.out{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:12px;font:700 .9rem var(--ui);color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<section class="login" id="screen-login" hidden>
+  <h1>Chrono Prises<span>Marqueurs de tournage → Premiere Pro</span></h1>
+  <form id="login-form">
+    <label for="login-pass">Mot de passe</label>
+    <div class="pw">
+      <input id="login-pass" type="password" autocomplete="current-password" required>
+      <button type="button" id="toggle-pass">Afficher</button>
+    </div>
+    <p class="err" id="login-error" role="alert"></p>
+    <button class="enter" type="submit" id="login-btn">Entrer</button>
+  </form>
+  <p class="hint">Mot de passe admin ou invité. Les prises sont enregistrées en ligne : rien ne se perd si le téléphone efface sa mémoire.</p>
+</section>
+
+<!-- App -->
+<div class="app" id="screen-app" hidden>
+  <header>
+    <input class="sess" id="sess" aria-label="Nom du tournage" placeholder="Nom du tournage">
+    <span class="chip role" id="role">Admin</span>
+    <button class="chip" id="settingsBtn" aria-expanded="false">Réglages</button>
+  </header>
+
+  <section class="sheet" id="sheet" hidden>
+    <label class="field" for="fps">Cadence de la séquence Premiere
+      <select id="fps">
+        <option value="23.976">23,976 i/s</option><option value="24">24 i/s</option>
+        <option value="25">25 i/s</option><option value="29.97">29,97 i/s</option>
+        <option value="30">30 i/s</option><option value="50">50 i/s</option><option value="60">60 i/s</option>
+      </select>
+    </label>
+    <div class="field">Boutons (nom et couleur Premiere)</div>
+    <div id="labelEdit" style="display:flex;flex-direction:column;gap:8px"></div>
+    <button class="out" id="logout">Se déconnecter</button>
+  </section>
+
+  <div class="seg" id="viewSeg" hidden>
+    <button id="vMine" aria-pressed="true">Mes prises</button>
+    <button id="vGuest" aria-pressed="false">Invités</button>
+  </div>
+  <p class="ro" id="roNote" hidden>Prises des invités · lecture seule. Tu peux les exporter pour Premiere.</p>
+
+  <nav class="tabs" aria-label="Prises">
+    <div class="tablist" id="tablist" role="tablist"></div>
+    <button class="add" id="addTake" aria-label="Ajouter une prise">+</button>
+  </nav>
+  <div class="takebar" id="takebar">
+    <input class="takename" id="takeName" aria-label="Renommer la prise">
+    <button class="trash" id="trash" aria-label="Supprimer cette prise">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
+  </div>
+  <div class="confirm" id="confirm" hidden>
+    <p id="confirmTxt"></p>
+    <div><button id="cNo">Annuler</button><button class="yes" id="cYes">Supprimer</button></div>
+  </div>
+
+  <div class="slab" id="slab">
+    <div class="state"><span class="dot"></span><span id="stateTxt">Prêt</span></div>
+    <div class="tc" id="tc">00<span class="sep">:</span>00<span class="sep">:</span>00</div>
+    <div class="sub" id="sub">Lance le chrono au moment où la caméra tourne</div>
+  </div>
+
+  <div class="transport" id="transport">
+    <button class="go" id="go">Lancer</button>
+    <button class="reset" id="reset">Remise à zéro</button>
+  </div>
+
+  <div class="pads" id="pads"></div>
+
+  <h2><span id="logTitle">Marqueurs</span><span id="count">0</span></h2>
+  <ul class="log" id="log"></ul>
+
+  <button class="dl" id="dl">Télécharger le zip</button>
+  <p class="sync wait" id="sync">Connexion…</p>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+// Safe to expose client-side, same as materiel/index.html: the publishable key and the two login
+// emails grant nothing without a password, and supabase/migrations/0003_chrono_init.sql only lets
+// the admin read every take and the guest read only the guest takes.
+const SUPABASE_URL="https://wvzivossvfgkuuggnhyh.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_PgwUJLXudHQ1Edc11NLC6g_OZ_xw9in";
+const ADMIN_EMAIL="chrono-admin@prises.local";
+const GUEST_EMAIL="chrono-invite@prises.local";
+
+// Premiere marker palette (pproColor = packed 0xAABBGGRR), checked against Premiere's own markers.
+const PAL={
+  vert:{n:"Vert",p:4281828977,hex:"#718637"},
+  jaune:{n:"Jaune",p:4281049552,hex:"#d0a12b"},
+  rouge:{n:"Rouge",p:4281740498,hex:"#d22c36"},
+  orange:{n:"Orange",p:4280578025,hex:"#e97024"},
+  bleu:{n:"Bleu",p:4294741314,hex:"#428efc"},
+  cyan:{n:"Cyan",p:4292277273,hex:"#19f4d6"},
+  magenta:{n:"Violet",p:4289825711,hex:"#af8bb1"}
+};
+const DEF_LABELS=[
+  {id:"a",name:"Début",color:"bleu"},
+  {id:"b",name:"Fin",color:"orange"},
+  {id:"c",name:"Bonne prise",color:"vert"},
+  {id:"d",name:"Mauvaise prise",color:"rouge"},
+  {id:"e",name:"Reprise",color:"cyan"},
+  {id:"f",name:"Info importante",color:"magenta"}];
+
+const $=id=>document.getElementById(id);
+const pad2=n=>String(n).padStart(2,"0");
+const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+Math.random().toString(36).slice(2));
+const store={get(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+let sb=null,user=null,role=null,KEY="";
+let S=null;            // own state: {settings, takes, cur, next, dirty[], tomb[], setDirty}
+let G=[];              // guest takes (admin only, read-only)
+let view="mine",gcur=null;
+
+function newTake(n,fresh){const now=Date.now();return{id:newId(),name:"Prise "+n,running:false,startAt:0,acc:0,markers:[],c:now,u:now,...(fresh?{fresh:true}:{})}}
+function loadState(){
+  let s=store.get(KEY);
+  if(!s||!Array.isArray(s.takes))s={settings:{session:"",fps:"25",labels:DEF_LABELS.map(l=>({...l})),u:0},takes:[],next:1,dirty:[],tomb:[],setDirty:false};
+  s.dirty=s.dirty||[];s.tomb=s.tomb||[];
+  if(!s.takes.length){s.takes.push(newTake(s.next++,true))}
+  if(!s.takes.find(t=>t.id===s.cur))s.cur=s.takes[0].id;
+  return s;
+}
+function persist(){store.set(KEY,S)}
+
+// ---------- Current take ----------
+const ro=()=>view==="guest";
+function T(){if(!S)return null;return ro()?G.find(t=>t.id===gcur)||null:S.takes.find(t=>t.id===S.cur)}
+const elapsed=t=>t?t.acc+(t.running?Date.now()-t.startAt:0):0;
+function hms(ms){const s=Math.floor(ms/1000);return [Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(pad2)}
+const hmsTxt=ms=>hms(ms).join(":");
+function lab(m){ // own takes follow the current button names; guest takes keep what was recorded
+  const l=!ro()&&S.settings.labels.find(x=>x.id===m.l);
+  return l?{name:l.name,color:l.color}:{name:m.n||"Marqueur",color:PAL[m.c]?m.c:"bleu"};
+}
+
+// ---------- Changes (each one is saved locally, then sent online) ----------
+function touch(t){if(t){t.u=Date.now();delete t.fresh;if(!S.dirty.includes(t.id))S.dirty.push(t.id)}persist();pushSoon()}
+function touchSettings(){S.settings.u=Date.now();S.setDirty=true;persist();pushSoon()}
+
+// ---------- Render ----------
+function renderTC(){const [h,m,s]=hms(elapsed(T()));$("tc").innerHTML=`${h}<span class="sep">:</span>${m}<span class="sep">:</span>${s}`}
+function renderState(){
+  const t=T();
+  $("screen-app").classList.toggle("running",!!(t&&t.running));
+  $("go").textContent=t&&t.running?"Arrêter":(t&&t.acc>0?"Reprendre":"Lancer");
+  $("go").classList.toggle("stop",!!(t&&t.running));
+  $("stateTxt").textContent=t?(t.running?"En cours":(t.acc>0?"En pause":"Prêt"))+" · "+t.name:"Aucune prise invité";
+  $("settingsBtn").textContent=`${S.settings.fps.replace(".",",")} i/s · Réglages`;
+}
+function renderView(){
+  const admin=role==="admin";
+  $("viewSeg").hidden=!admin;
+  $("vMine").setAttribute("aria-pressed",String(!ro()));
+  $("vGuest").setAttribute("aria-pressed",String(ro()));
+  $("vGuest").textContent=`Invités (${G.length})`;
+  $("roNote").hidden=!ro();
+  ["addTake","takebar","transport","pads"].forEach(id=>$(id).hidden=ro());
+  $("sub").hidden=ro();
+  if(ro())$("confirm").hidden=true;
+}
+function renderTabs(){
+  const list=$("tablist");list.innerHTML="";
+  const takes=ro()?G:S.takes,cur=ro()?gcur:S.cur;
+  takes.forEach(t=>{
+    const b=document.createElement("button");
+    b.className="tab";b.setAttribute("role","tab");b.setAttribute("aria-selected",String(t.id===cur));
+    if(t.running){const d=document.createElement("span");d.className="rd";b.appendChild(d)}
+    b.appendChild(document.createTextNode(t.name));
+    b.onclick=()=>switchTake(t.id);
+    list.appendChild(b);
+    if(t.id===cur)requestAnimationFrame(()=>b.scrollIntoView({inline:"nearest",block:"nearest"}));
+  });
+  if(!ro()&&document.activeElement!==$("takeName"))$("takeName").value=T().name;
+}
+function renderPads(){
+  const box=$("pads");box.innerHTML="";if(ro())return;
+  S.settings.labels.forEach(l=>{
+    const b=document.createElement("button");
+    b.className="pad";b.style.setProperty("--c",PAL[l.color].hex);
+    const n=T().markers.filter(m=>m.l===l.id).length;
+    b.innerHTML=`<b></b><span>${n} marqueur${n>1?"s":""}</span>`;
+    b.querySelector("b").textContent=l.name;
+    b.onclick=()=>addMarker(l,b);
+    box.appendChild(b);
+  });
+}
+function renderLog(){
+  const t=T(),ul=$("log");ul.innerHTML="";
+  $("logTitle").textContent="Marqueurs"+(t?" · "+t.name:"");
+  $("count").textContent=t?t.markers.length:0;
+  if(!t||!t.markers.length){ul.innerHTML=`<li class="empty">${ro()?(t?"Aucun marqueur sur cette prise.":"Les invités n'ont encore enregistré aucune prise."):"Aucun marqueur sur cette prise. Touche un bouton de couleur pendant le chrono."}</li>`;return}
+  [...t.markers].reverse().forEach((m,i)=>{
+    const l=lab(m),li=document.createElement("li");
+    li.innerHTML=`<span class="bar" style="--c:${PAL[l.color].hex}"></span><span class="t">${hmsTxt(m.ms)}</span><span class="n"></span>`;
+    li.querySelector(".n").textContent=l.name;
+    const sm=document.createElement("small");sm.textContent="Marqueur "+(t.markers.length-i);li.querySelector(".n").appendChild(sm);
+    if(!ro()){const d=document.createElement("button");d.className="del";d.setAttribute("aria-label","Supprimer le marqueur");d.textContent="×";
+      d.onclick=()=>{t.markers=t.markers.filter(x=>x!==m);touch(t);renderLog();renderPads();toast("Marqueur supprimé")};li.appendChild(d)}
+    ul.appendChild(li);
+  });
+}
+function renderEdit(){
+  const box=$("labelEdit");box.innerHTML="";
+  S.settings.labels.forEach(l=>{
+    const r=document.createElement("div");r.className="row";
+    const inp=document.createElement("input");inp.value=l.name;inp.id="lbl-"+l.id;inp.setAttribute("aria-label","Nom du bouton");
+    inp.oninput=()=>{l.name=inp.value||"Sans nom";touchSettings();renderPads();renderLog()};
+    const sel=document.createElement("select");sel.id="col-"+l.id;sel.setAttribute("aria-label","Couleur");
+    for(const k in PAL){const o=document.createElement("option");o.value=k;o.textContent=PAL[k].n;if(k===l.color)o.selected=true;sel.appendChild(o)}
+    sel.onchange=()=>{l.color=sel.value;touchSettings();renderPads();renderLog()};
+    r.append(inp,sel);box.appendChild(r);
+  });
+  $("fps").value=S.settings.fps;
+  if(document.activeElement!==$("sess"))$("sess").value=S.settings.session;
+}
+function renderAll(){renderView();renderTabs();renderState();renderTC();renderPads();renderLog();renderEdit();renderSync()}
+
+// ---------- Takes ----------
+function hideConfirm(){$("confirm").hidden=true}
+function switchTake(id){if(ro())gcur=id;else{S.cur=id;persist()}hideConfirm();disarmReset();renderAll()}
+function setView(v){view=v;if(v==="guest"&&!G.find(t=>t.id===gcur))gcur=G[0]&&G[0].id;hideConfirm();disarmReset();renderAll()}
+$("vMine").onclick=()=>setView("mine");
+$("vGuest").onclick=()=>{setView("guest");pull()};
+$("addTake").onclick=()=>{const t=newTake(S.next++);S.takes.push(t);S.cur=t.id;touch(t);hideConfirm();disarmReset();renderAll();toast(t.name+" ajoutée")};
+$("takeName").oninput=e=>{const t=T();t.name=e.target.value.trim()||"Sans nom";touch(t);renderTabs();renderState();renderLog()};
+$("takeName").onblur=e=>{if(!e.target.value.trim())e.target.value=T().name};
+$("trash").onclick=()=>{
+  const t=T(),n=t.markers.length;
+  $("confirmTxt").textContent=`Supprimer « ${t.name} »${n?` et ses ${n} marqueur${n>1?"s":""}`:""} ? Cette action est définitive.`;
+  $("confirm").hidden=false;
+};
+$("cNo").onclick=hideConfirm;
+$("cYes").onclick=()=>{
+  const i=S.takes.findIndex(t=>t.id===S.cur),t=S.takes[i];
+  S.takes.splice(i,1);S.dirty=S.dirty.filter(x=>x!==t.id);S.tomb.push(t.id);
+  if(!S.takes.length){S.next=1;S.takes.push(newTake(S.next++,true))}
+  S.cur=S.takes[Math.min(i,S.takes.length-1)].id;
+  persist();pushSoon();hideConfirm();renderAll();toast(`« ${t.name} » supprimée`);
+};
+
+let wake=null;
+async function keepAwake(on){try{if(on&&!wake&&navigator.wakeLock){wake=await navigator.wakeLock.request("screen");wake.addEventListener("release",()=>wake=null)}if(!on&&wake){await wake.release();wake=null}}catch(e){}}
+const anyRunning=()=>S&&S.takes.some(t=>t.running);
+
+$("go").onclick=()=>{
+  const t=T();
+  if(t.running){t.acc+=Date.now()-t.startAt;t.running=false}else{t.startAt=Date.now();t.running=true}
+  keepAwake(anyRunning());touch(t);renderState();renderTC();renderTabs();
+};
+let armT;
+function disarmReset(){clearTimeout(armT);const b=$("reset");b.classList.remove("armed");b.textContent="Remise à zéro"}
+$("reset").onclick=()=>{
+  const b=$("reset");
+  if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";armT=setTimeout(disarmReset,3000);return}
+  disarmReset();const t=T();t.running=false;t.acc=0;t.markers=[];touch(t);keepAwake(anyRunning());renderAll();toast(t.name+" remise à zéro");
+};
+function addMarker(l,btn){
+  const t=T(),ms=elapsed(t);
+  t.markers.push({l:l.id,ms,n:l.name,c:l.color});t.markers.sort((a,b)=>a.ms-b.ms);touch(t);
+  btn.classList.remove("flash");void btn.offsetWidth;btn.classList.add("flash");
+  if(navigator.vibrate)navigator.vibrate(30);
+  renderLog();renderPads();toast(`${l.name} · ${hmsTxt(ms)}`);
+}
+$("sess").oninput=e=>{S.settings.session=e.target.value;touchSettings()};
+$("fps").onchange=e=>{S.settings.fps=e.target.value;touchSettings();renderState()};
+$("settingsBtn").onclick=()=>{const s=$("sheet");s.hidden=!s.hidden;$("settingsBtn").setAttribute("aria-expanded",String(!s.hidden))};
+
+let tt;function toast(t){const el=$("toast");el.textContent=t;el.classList.add("on");clearTimeout(tt);tt=setTimeout(()=>el.classList.remove("on"),1600)}
+
+// ---------- Online sync ----------
+let pushTimer=null,pushing=false,pushAgain=false,lastOk=0,syncErr=null;
+function pushSoon(){clearTimeout(pushTimer);pushTimer=setTimeout(push,600)}
+async function push(){
+  if(!sb||!user)return;
+  if(pushing){pushAgain=true;return}
+  if(!S.dirty.length&&!S.tomb.length&&!S.setDirty){renderSync();return}
+  pushing=true;
+  try{
+    const now=new Date().toISOString();
+    const snap={};const rows=[];
+    S.dirty.forEach(id=>{const t=S.takes.find(x=>x.id===id);if(t){snap[id]=t.u;rows.push({id,user_id:user.id,data:t,deleted:false,updated_at:now})}});
+    const tomb=[...S.tomb];
+    tomb.forEach(id=>rows.push({id,user_id:user.id,data:{},deleted:true,updated_at:now}));
+    if(rows.length){const r=await sb.from("chrono_takes").upsert(rows);if(r.error)throw r.error}
+    S.dirty=S.dirty.filter(id=>{const t=S.takes.find(x=>x.id===id);return t&&snap[id]!==t.u});
+    S.tomb=S.tomb.filter(id=>!tomb.includes(id));
+    if(S.setDirty){const u=S.settings.u;const r=await sb.from("chrono_settings").upsert({user_id:user.id,data:S.settings,updated_at:now});if(r.error)throw r.error;if(S.settings.u===u)S.setDirty=false}
+    persist();lastOk=Date.now();syncErr=null;
+  }catch(e){syncErr=e}
+  pushing=false;renderSync();
+  if(pushAgain){pushAgain=false;push()}
+  else if(syncErr){clearTimeout(pushTimer);pushTimer=setTimeout(push,8000)}
+}
+async function pull(){
+  if(!sb||!user)return;
+  try{
+    const [tr,sr]=await Promise.all([
+      sb.from("chrono_takes").select("id,user_id,data,deleted"),
+      sb.from("chrono_settings").select("data").eq("user_id",user.id).maybeSingle()]);
+    if(tr.error)throw tr.error;
+    const rows=tr.data||[];
+    const mine=rows.filter(r=>r.user_id===user.id);
+    const ids=new Set(mine.map(r=>r.id));
+    const live=mine.filter(r=>!r.deleted);
+    // takes deleted elsewhere
+    mine.filter(r=>r.deleted).forEach(r=>{S.takes=S.takes.filter(t=>t.id!==r.id);S.dirty=S.dirty.filter(x=>x!==r.id)});
+    // newer versions from another device
+    live.forEach(r=>{
+      if(S.tomb.includes(r.id))return;
+      const i=S.takes.findIndex(t=>t.id===r.id),d=r.data;
+      if(i<0)S.takes.push(d);
+      else if(!S.dirty.includes(r.id)&&(d.u||0)>(S.takes[i].u||0))S.takes[i]=d;
+    });
+    // local takes the server has never seen: send them, except the blank starter take
+    S.takes=S.takes.filter(t=>{
+      if(ids.has(t.id))return true;
+      if(t.fresh&&!t.markers.length&&!t.acc&&!t.running&&live.length)return false;
+      if(!t.fresh&&!S.dirty.includes(t.id))S.dirty.push(t.id);
+      return true;
+    });
+    S.takes.sort((a,b)=>(a.c||0)-(b.c||0));
+    if(!S.takes.length)S.takes.push(newTake(1,true));
+    S.next=Math.max(S.next||1,S.takes.length+1);
+    if(!S.takes.find(t=>t.id===S.cur))S.cur=S.takes[S.takes.length-1].id;
+    if(!sr.error&&sr.data&&sr.data.data&&(sr.data.data.u||0)>(S.settings.u||0)&&!S.setDirty)S.settings=sr.data.data;
+    if(role==="admin"){
+      G=rows.filter(r=>r.user_id!==user.id&&!r.deleted).map(r=>r.data).sort((a,b)=>(a.c||0)-(b.c||0));
+      if(!G.find(t=>t.id===gcur))gcur=G[0]&&G[0].id;
+    }
+    persist();lastOk=Date.now();syncErr=null;
+  }catch(e){syncErr=e}
+  if(!document.activeElement||!["takeName","sess"].includes(document.activeElement.id)&&!document.activeElement.closest("#labelEdit"))renderAll();else renderSync();
+  push();
+}
+function renderSync(){
+  const el=$("sync"),pending=S&&(S.dirty.length||S.tomb.length||S.setDirty);
+  const d=new Date(lastOk),hm=lastOk?`${pad2(d.getHours())}:${pad2(d.getMinutes())}`:"";
+  if(!navigator.onLine){el.className="sync wait";el.textContent=pending?"Hors ligne · enregistré sur le téléphone, envoyé dès le retour du réseau":"Hors ligne · tout est déjà en ligne"}
+  else if(syncErr&&pending){el.className="sync bad";el.textContent="Envoi en échec · nouvel essai automatique"}
+  else if(pending){el.className="sync wait";el.textContent="Envoi en cours…"}
+  else if(lastOk){el.className="sync ok";el.textContent="Tout est enregistré en ligne · "+hm}
+  else{el.className="sync wait";el.textContent="Connexion…"}
+}
+window.addEventListener("online",()=>{renderSync();pull()});
+window.addEventListener("offline",renderSync);
+document.addEventListener("visibilitychange",()=>{
+  if(document.visibilityState==="visible"){if(anyRunning())keepAwake(true);pull()}
+  else{clearTimeout(pushTimer);push()}
+});
+setInterval(()=>{if(document.visibilityState==="visible")pull()},30000);
+
+// ---------- Export ----------
+const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+function rateInfo(){const f=parseFloat(S.settings.fps);const ntsc=[23.976,29.97,59.94].includes(f);return{tb:ntsc?Math.round(f):f,ntsc,real:ntsc?Math.round(f)*1000/1001:f}}
+function seqName(t){const s=S.settings.session.trim();return (s?s+" – ":"")+(ro()?"Invité – ":"")+t.name}
+function buildXML(t){
+  const r=rateInfo(),rate=`<rate><timebase>${r.tb}</timebase><ntsc>${r.ntsc?"TRUE":"FALSE"}</ntsc></rate>`;
+  const last=t.markers.length?t.markers[t.markers.length-1].ms:0;
+  const dur=Math.max(Math.round((Math.max(last,elapsed(t))/1000+10)*r.real),r.tb*10);
+  const mk=t.markers.map((m,i)=>{const l=lab(m);const f=Math.round(m.ms/1000*r.real);
+    return `      <marker><name>${esc(l.name)}</name><comment>${esc(`${t.name} · Marqueur ${i+1} · ${hmsTxt(m.ms)}`)}</comment><in>${f}</in><out>-1</out><pproColor>${PAL[l.color].p}</pproColor></marker>`}).join("\n");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE xmeml>
+<xmeml version="5">
+  <sequence id="chrono-${esc(t.id)}">
+    <name>${esc(seqName(t))}</name>
+    <duration>${dur}</duration>
+    ${rate}
+    <timecode>${rate}<string>00:00:00:00</string><frame>0</frame><displayformat>NDF</displayformat></timecode>
+    <media>
+      <video><format><samplecharacteristics>${rate}<width>1920</width><height>1080</height><anamorphic>FALSE</anamorphic><pixelaspectratio>square</pixelaspectratio><fielddominance>none</fielddominance></samplecharacteristics></format><track/></video>
+      <audio><track/></audio>
+    </media>
+${mk}
+  </sequence>
+</xmeml>
+`;
+}
+function buildCSV(takes){
+  const q=s=>`"${String(s).replace(/"/g,'""')}"`,rows=[];
+  takes.forEach(t=>t.markers.forEach((m,i)=>{const l=lab(m);rows.push(`${q(t.name)};${i+1};${hmsTxt(m.ms)};${q(l.name)};${PAL[l.color].n}`)}));
+  return "﻿Prise;N°;Timecode;Type;Couleur\n"+rows.join("\n")+"\n";
+}
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function zip(files){
+  const enc=new TextEncoder(),parts=[],cen=[];let off=0;
+  const d=new Date(),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
+  for(const f of files){
+    const nm=enc.encode(f.name),data=enc.encode(f.text),crc=crc32(data);
+    const h=new DataView(new ArrayBuffer(30));
+    h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);
+    h.setUint16(10,tm,true);h.setUint16(12,dt,true);h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,nm.length,true);h.setUint16(28,0,true);
+    parts.push(new Uint8Array(h.buffer),nm,data);
+    const c=new DataView(new ArrayBuffer(46));
+    c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(10,0,true);
+    c.setUint16(12,tm,true);c.setUint16(14,dt,true);c.setUint32(16,crc,true);c.setUint32(20,data.length,true);c.setUint32(24,data.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+    cen.push(new Uint8Array(c.buffer),nm);off+=30+nm.length+data.length;
+  }
+  const cl=cen.reduce((a,b)=>a+b.length,0),e=new DataView(new ArrayBuffer(22));
+  e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cl,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:"application/zip"});
+}
+const clean=s=>s.replace(/[^\w\-À-ÿ ]+/g,"").trim().replace(/\s+/g,"_")||"Prise";
+function baseName(){const d=new Date();return clean(S.settings.session.trim()||"Marqueurs")+(ro()?"_Invites":"")+`_${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
+$("dl").onclick=()=>{
+  const takes=(ro()?G:S.takes).filter(t=>t.markers.length);
+  if(!takes.length){toast("Aucun marqueur à exporter");return}
+  const b=baseName(),used={};
+  const files=takes.map(t=>{let n=clean(t.name);used[n]=(used[n]||0)+1;if(used[n]>1)n+="_"+used[n];return{name:`${b}_${n}.xml`,text:buildXML(t)}});
+  files.push({name:b+".csv",text:buildCSV(takes)});
+  const url=URL.createObjectURL(zip(files)),a=document.createElement("a");
+  a.href=url;a.download=b+".zip";document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),60000);
+};
+
+// ---------- Login / boot ----------
+function show(id){$("screen-login").hidden=id!=="screen-login";$("screen-app").hidden=id!=="screen-app"}
+function enter(u){
+  user=u;role=(u.email||"").toLowerCase()===ADMIN_EMAIL?"admin":"invite";
+  KEY="chrono-prises-"+role+"-"+u.id;S=loadState();view="mine";
+  $("role").textContent=role==="admin"?"Admin":"Invité";$("role").classList.toggle("guest",role!=="admin");
+  show("screen-app");renderAll();pull();if(anyRunning())keepAwake(true);
+}
+$("toggle-pass").onclick=()=>{const i=$("login-pass"),s=i.type==="text";i.type=s?"password":"text";$("toggle-pass").textContent=s?"Afficher":"Masquer"};
+$("login-form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const err=$("login-error"),btn=$("login-btn"),pass=$("login-pass").value;err.textContent="";
+  if(!sb){err.textContent="Pas de connexion internet. Réessaie avec du réseau.";return}
+  btn.disabled=true;
+  let r=await sb.auth.signInWithPassword({email:ADMIN_EMAIL,password:pass});
+  if(r.error)r=await sb.auth.signInWithPassword({email:GUEST_EMAIL,password:pass});
+  btn.disabled=false;
+  if(r.error){err.textContent=navigator.onLine?"Mot de passe incorrect.":"Pas de connexion internet. Réessaie avec du réseau.";return}
+  $("login-form").reset();enter(r.data.user);
+});
+$("logout").onclick=async()=>{
+  clearTimeout(pushTimer);await push();
+  if(S&&(S.dirty.length||S.tomb.length||S.setDirty)){toast("Des prises ne sont pas encore en ligne · reconnecte-toi au réseau d'abord");return}
+  try{await sb.auth.signOut()}catch(e){}
+  location.reload();
+};
+setInterval(()=>{const t=T();if(t&&t.running)renderTC()},250);
+
+(async function boot(){
+  if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+  if(!window.supabase){ // offline and the library isn't cached yet
+    const last=store.get("chrono-prises-last");
+    if(last&&last.id){sb=null;enter(last);renderSync();return}
+    show("screen-login");return;
+  }
+  sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true}});
+  const {data}=await sb.auth.getSession();
+  const u=data&&data.session&&data.session.user;
+  if(u){store.set("chrono-prises-last",{id:u.id,email:u.email});enter(u)}else show("screen-login");
+  sb.auth.onAuthStateChange((ev,session)=>{if(session&&session.user)store.set("chrono-prises-last",{id:session.user.id,email:session.user.email})});
+})();
+</script>
+</body>
+</html>
