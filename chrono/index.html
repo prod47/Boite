@@ -129,7 +129,9 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
 .del{border:0;background:none;color:var(--muted);font-size:1.2rem;padding:4px 8px}
 .log .empty{display:block;padding:18px;color:var(--muted);font-size:.9rem;text-align:center}
 
-.dl{align-self:center;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:9px 18px;font:700 .8rem var(--ui);color:var(--muted);margin-top:4px}
+.bottom{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:4px}
+.dl{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:9px 18px;font:700 .8rem var(--ui);color:var(--muted)}
+.wipe{border:0;background:var(--rec);color:#1a0302;border-radius:999px;padding:9px 16px;font:800 .8rem var(--ui);letter-spacing:.02em}
 .sync{margin:0;text-align:center;font:500 .72rem var(--mono);color:var(--muted)}
 .sync::before{content:"● "}
 .sync.ok::before{color:var(--play)}
@@ -228,7 +230,14 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
   <h2><span id="logTitle">Marqueurs</span><span id="count">0</span></h2>
   <ul class="log" id="log"></ul>
 
-  <button class="dl" id="dl">Télécharger le zip</button>
+  <div class="bottom">
+    <button class="dl" id="dl">Télécharger le zip</button>
+    <button class="wipe" id="wipe">Tout réinitialiser</button>
+  </div>
+  <div class="confirm" id="wipeBox" hidden>
+    <p id="wipeTxt"></p>
+    <div><button id="wNo">Annuler</button><button class="yes" id="wYes">Tout supprimer</button></div>
+  </div>
   <p class="sync wait" id="sync">Connexion…</p>
 </div>
 <div class="toast" id="toast" role="status"></div>
@@ -336,7 +345,8 @@ function renderView(){
   $("vGuest").setAttribute("aria-pressed",String(ro()));
   $("vGuest").textContent=`Invités (${G.length})`;
   $("roNote").hidden=!ro();
-  ["addVideo","vidbar","addPrise","priseTrash","transport","pads","sub"].forEach(id=>$(id).hidden=ro());
+  ["addVideo","vidbar","addPrise","priseTrash","transport","pads","sub","wipe"].forEach(id=>$(id).hidden=ro());
+  if(ro())$("wipeBox").hidden=true;
   $("slab").hidden=ro()&&!V();
   if(ro())$("confirm").hidden=true;
 }
@@ -602,6 +612,20 @@ function zip(files){
 }
 const clean=s=>s.replace(/[^\w\-À-ÿ ]+/g,"").trim().replace(/\s+/g,"_")||"Sans_nom";
 function baseName(){const d=new Date();return clean(S.settings.session.trim()||"Marqueurs")+(ro()?"_Invites":"")+`_${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
+// ---------- Reset everything (own videos only; buttons and settings are kept) ----------
+$("wipe").onclick=()=>{
+  const nv=S.videos.length,np=S.videos.reduce((a,v)=>a+v.prises.length,0),nm=S.videos.reduce((a,v)=>a+markerCount(v),0);
+  $("wipeTxt").textContent=`Supprimer définitivement ${nv} vidéo${nv>1?"s":""}, ${np} prise${np>1?"s":""}${nm?` et ${nm} marqueur${nm>1?"s":""}`:""} ? Tout sera effacé, ici et en ligne. Pense à télécharger le zip avant.`;
+  $("wipeBox").hidden=false;$("wipeBox").scrollIntoView({block:"nearest",behavior:"smooth"});
+};
+$("wNo").onclick=()=>{$("wipeBox").hidden=true};
+$("wYes").onclick=()=>{
+  S.videos.forEach(v=>{if(!S.tomb.includes(v.id))S.tomb.push(v.id)});
+  S.dirty=[];S.nextVideo=1;
+  const v=newVideo(S.nextVideo++);delete v.fresh;S.videos=[v];S.cur=v.id;S.dirty.push(v.id);
+  $("wipeBox").hidden=true;persist();pushSoon();keepAwake(false);hideConfirm();disarmReset();renderAll();
+  window.scrollTo({top:0,behavior:"smooth"});toast("Tout est réinitialisé · Vidéo 01 · Prise 01");
+};
 $("dl").onclick=()=>{
   const vids=(ro()?G:S.videos).filter(v=>markerCount(v));
   if(!vids.length){toast("Aucun marqueur à exporter");return}
