@@ -230,7 +230,8 @@ const PAL={
   orange:{n:"Orange",p:4280578025,hex:"#e97024"},
   bleu:{n:"Bleu",p:4294741314,hex:"#428efc"},
   cyan:{n:"Cyan",p:4292277273,hex:"#19f4d6"},
-  magenta:{n:"Violet",p:4289825711,hex:"#af8bb1"}
+  magenta:{n:"Violet",p:4289825711,hex:"#af8bb1"},
+  blanc:{n:"Blanc",p:4294967295,hex:"#f2f2f2"}
 };
 const DEF_LABELS=[
   {id:"a",name:"Début",color:"bleu"},
@@ -238,7 +239,11 @@ const DEF_LABELS=[
   {id:"c",name:"Bonne prise",color:"vert"},
   {id:"d",name:"Mauvaise prise",color:"rouge"},
   {id:"e",name:"Reprise",color:"cyan"},
-  {id:"f",name:"Info importante",color:"magenta"}];
+  {id:"f",name:"Info importante",color:"magenta"},
+  {id:"g",name:"Option 1",color:"jaune"},
+  {id:"h",name:"Option 2",color:"blanc"}];
+// buttons added in later versions appear for people who already had saved settings
+function ensureLabels(st){let added=false;DEF_LABELS.forEach(d=>{if(!st.labels.find(l=>l.id===d.id)){st.labels.push({...d});added=true}});return added}
 
 const $=id=>document.getElementById(id);
 const pad2=n=>String(n).padStart(2,"0");
@@ -255,6 +260,7 @@ function loadState(){
   let s=store.get(KEY);
   if(!s||!Array.isArray(s.takes))s={settings:{session:"",fps:"25",labels:DEF_LABELS.map(l=>({...l})),u:0},takes:[],next:1,dirty:[],tomb:[],setDirty:false};
   s.dirty=s.dirty||[];s.tomb=s.tomb||[];
+  if(ensureLabels(s.settings)){s.settings.u=Date.now();s.setDirty=true}
   if(!s.takes.length){s.takes.push(newTake(s.next++,true))}
   if(!s.takes.find(t=>t.id===s.cur))s.cur=s.takes[0].id;
   return s;
@@ -461,7 +467,7 @@ async function pull(){
     if(!S.takes.length)S.takes.push(newTake(1,true));
     S.next=Math.max(S.next||1,S.takes.length+1);
     if(!S.takes.find(t=>t.id===S.cur))S.cur=S.takes[S.takes.length-1].id;
-    if(!sr.error&&sr.data&&sr.data.data&&(sr.data.data.u||0)>(S.settings.u||0)&&!S.setDirty)S.settings=sr.data.data;
+    if(!sr.error&&sr.data&&sr.data.data&&(sr.data.data.u||0)>(S.settings.u||0)&&!S.setDirty){S.settings=sr.data.data;if(ensureLabels(S.settings)){S.settings.u=Date.now();S.setDirty=true}}
     if(role==="admin"){
       G=rows.filter(r=>r.user_id!==user.id&&!r.deleted).map(r=>r.data).sort((a,b)=>(a.c||0)-(b.c||0));
       if(!G.find(t=>t.id===gcur))gcur=G[0]&&G[0].id;
