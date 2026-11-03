@@ -115,6 +115,16 @@ header{display:flex;align-items:center;gap:8px}
 .pad.flash{animation:flash .35s}
 @keyframes flash{0%{filter:brightness(1.6)}100%{filter:none}}
 
+.note{position:fixed;left:0;right:0;top:0;z-index:20;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 14px max(16px,env(safe-area-inset-left,0px));background:rgba(5,6,7,.96);border-bottom:1px solid var(--line)}
+.note form{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:10px}
+.nt{display:flex;align-items:center;gap:8px;font:600 .78rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--fg)}
+.nd{width:12px;height:12px;border-radius:3px;flex:0 0 auto}
+.nh{margin:0;color:var(--muted);font-size:.85rem}
+.note input{background:var(--panel);border:1px solid var(--fg);border-radius:10px;color:var(--fg);padding:13px 12px;font:600 16px var(--ui);width:100%}
+.nb{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.nb button{border-radius:10px;padding:12px;font:700 .95rem var(--ui);border:1px solid var(--line);background:var(--panel)}
+.nb button[type=submit]{background:var(--play);border-color:var(--play);color:#06150c}
+.log .n.edit{cursor:pointer}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);font:600 .85rem var(--ui);padding:10px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:calc(100% - 32px)}
 .toast.on{opacity:1}
 
@@ -244,6 +254,14 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
   </div>
   <p class="sync wait" id="sync">Connexion…</p>
 </div>
+<div class="note" id="noteBox" hidden role="dialog" aria-labelledby="noteTitle">
+  <form id="noteForm">
+    <div class="nt"><span class="nd" id="noteDot"></span><span id="noteTitle"></span></div>
+    <p class="nh" id="noteHint"></p>
+    <input id="noteInput" type="text" autocomplete="off" enterkeyhint="done" aria-label="Texte du marqueur">
+    <div class="nb"><button type="button" id="noteSkip">Laisser par défaut</button><button type="submit" id="noteSave">Enregistrer</button></div>
+  </form>
+</div>
 <div class="toast" id="toast" role="status"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -273,11 +291,20 @@ const DEF_LABELS=[
   {id:"c",name:"Bonne prise",color:"vert"},
   {id:"d",name:"Mauvaise prise",color:"rouge"},
   {id:"e",name:"Reprise",color:"cyan"},
-  {id:"f",name:"Info importante",color:"magenta"},
-  {id:"g",name:"Option 1",color:"jaune"},
-  {id:"h",name:"Option 2",color:"blanc"}];
+  {id:"f",name:"Option 1",color:"magenta"},
+  {id:"g",name:"Option 2",color:"jaune"},
+  {id:"h",name:"Information importante",color:"blanc",ask:true}];  // ask: opens a text box on every tap
 // buttons added in later versions appear for people who already had saved settings
-function ensureLabels(st){let added=false;DEF_LABELS.forEach(d=>{if(!st.labels.find(l=>l.id===d.id)){st.labels.push({...d});added=true}});return added}
+function ensureLabels(st){
+  let changed=false;
+  DEF_LABELS.forEach(d=>{if(!st.labels.find(l=>l.id===d.id)){st.labels.push({...d});changed=true}});
+  if(!st.v3){ // November 2026 renaming of buttons 6-8, applied once to names still at their old defaults
+    const old={f:"Info importante",g:"Option 1",h:"Option 2"};
+    st.labels.forEach(l=>{if(old[l.id]&&l.name===old[l.id]){l.name=DEF_LABELS.find(d=>d.id===l.id).name}if(l.id==="h")l.ask=true});
+    st.v3=true;changed=true;
+  }
+  return changed;
+}
 
 const $=id=>document.getElementById(id);
 const pad2=n=>String(n).padStart(2,"0");
@@ -322,6 +349,7 @@ function P(){const v=V();if(!v)return null;const id=ro()?gpcur[v.id]:v.cur;retur
 const elapsed=p=>p?p.acc+(p.running?Date.now()-p.startAt:0):0;
 function hms(ms){const s=Math.floor(ms/1000);return [Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(pad2)}
 const hmsTxt=ms=>hms(ms).join(":");
+const say=m=>(m.t&&m.t.trim())||lab(m).name;
 function lab(m){ // own videos follow the current button names; guest videos keep what was recorded
   const l=!ro()&&S.settings.labels.find(x=>x.id===m.l);
   return l?{name:l.name,color:l.color}:{name:m.n||"Marqueur",color:PAL[m.c]?m.c:"bleu"};
@@ -391,8 +419,9 @@ function renderLog(){
   [...p.markers].reverse().forEach((m,i)=>{
     const l=lab(m),li=document.createElement("li");
     li.innerHTML=`<span class="bar" style="--c:${PAL[l.color].hex}"></span><span class="t">${hmsTxt(m.ms)}</span><span class="n"></span>`;
-    li.querySelector(".n").textContent=l.name;
-    const sm=document.createElement("small");sm.textContent="Marqueur "+(p.markers.length-i);li.querySelector(".n").appendChild(sm);
+    const n=li.querySelector(".n");n.textContent=say(m);
+    const sm=document.createElement("small");sm.textContent=(m.t&&m.t.trim()?l.name+" · ":"")+"Marqueur "+(p.markers.length-i)+(ro()?"":" · ✎ modifier");n.appendChild(sm);
+    if(!ro()){n.classList.add("edit");n.setAttribute("role","button");n.tabIndex=0;n.onclick=()=>openNote(v,p,m,false);n.onkeydown=e=>{if(e.key==="Enter")openNote(v,p,m,false)}}
     if(!ro()){const d=document.createElement("button");d.className="del";d.setAttribute("aria-label","Supprimer le marqueur");d.textContent="×";
       d.onclick=()=>{p.markers=p.markers.filter(x=>x!==m);touch(v);renderLog();renderPads();renderTabs();toast("Marqueur supprimé")};li.appendChild(d)}
     ul.appendChild(li);
@@ -467,11 +496,31 @@ $("reset").onclick=()=>{
 };
 function addMarker(l,btn){
   const v=V(),p=P(),ms=elapsed(p);
-  p.markers.push({l:l.id,ms,n:l.name,c:l.color});p.markers.sort((a,b)=>a.ms-b.ms);touch(v);
+  const mk={l:l.id,ms,n:l.name,c:l.color};p.markers.push(mk);p.markers.sort((a,b)=>a.ms-b.ms);touch(v);
   btn.classList.remove("flash");void btn.offsetWidth;btn.classList.add("flash");
   if(navigator.vibrate)navigator.vibrate(30);
-  renderLog();renderPads();renderTabs();toast(`${l.name} · ${hmsTxt(ms)}`);
+  renderLog();renderPads();renderTabs();
+  if(l.ask)openNote(v,p,mk,true);else toast(`${l.name} · ${hmsTxt(ms)}`);
 }
+
+// ---------- Marker text box (white button on every tap; any marker from the list) ----------
+let noteCtx=null;
+function openNote(v,p,m,fresh){
+  noteCtx={v,p,m};
+  const l=lab(m);
+  $("noteTitle").textContent=`${v.name} · ${p.name} · ${hmsTxt(m.ms)}`;
+  $("noteHint").textContent=fresh?"Marqueur posé. Écris ce que tu veux noter, ou laisse vide.":"Change le texte de ce marqueur, ou vide-le pour revenir au nom du bouton.";
+  $("noteDot").style.background=PAL[l.color].hex;
+  const inp=$("noteInput");inp.value=m.t||"";inp.placeholder=l.name;
+  $("noteBox").hidden=false;setTimeout(()=>inp.focus(),30);
+}
+function closeNote(save){
+  if(save&&noteCtx){const {v,m}=noteCtx,t=$("noteInput").value.trim();if(t)m.t=t;else delete m.t;touch(v);renderLog();toast(say(m)+" · "+hmsTxt(m.ms))}
+  noteCtx=null;$("noteBox").hidden=true;$("noteInput").blur();
+}
+$("noteSave").onclick=()=>closeNote(true);
+$("noteSkip").onclick=()=>closeNote(false);
+$("noteForm").addEventListener("submit",e=>{e.preventDefault();closeNote(true)});
 $("sess").oninput=e=>{S.settings.session=e.target.value;touchSettings()};
 $("fps").onchange=e=>{S.settings.fps=e.target.value;touchSettings();renderState()};
 $("settingsBtn").onclick=()=>{const s=$("sheet");s.hidden=!s.hidden;$("settingsBtn").setAttribute("aria-expanded",String(!s.hidden))};
@@ -571,7 +620,7 @@ function buildXML(v,p){
   const last=p.markers.length?p.markers[p.markers.length-1].ms:0;
   const dur=Math.max(Math.round((Math.max(last,elapsed(p))/1000+10)*r.real),r.tb*10);
   const mk=p.markers.map((m,i)=>{const l=lab(m);const f=Math.round(m.ms/1000*r.real);
-    return `      <marker><name>${esc(l.name)}</name><comment>${esc(`${v.name} · ${p.name} · Marqueur ${i+1} · ${hmsTxt(m.ms)}`)}</comment><in>${f}</in><out>-1</out><pproColor>${PAL[l.color].p}</pproColor></marker>`}).join("\n");
+    return `      <marker><name>${esc(say(m))}</name><comment>${esc(`${l.name} · ${v.name} · ${p.name} · Marqueur ${i+1} · ${hmsTxt(m.ms)}`)}</comment><in>${f}</in><out>-1</out><pproColor>${PAL[l.color].p}</pproColor></marker>`}).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="5">
