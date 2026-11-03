@@ -647,7 +647,7 @@ $("logout").onclick=async()=>{
 setInterval(()=>{const p=P();if(p&&p.running)renderTC()},250);
 
 (async function boot(){
-  if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+  if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(()=>{});
   if(!window.supabase){ // offline and the library isn't cached yet
     const last=store.get("chrono-prises-last");
     if(last&&last.id){sb=null;enter(last);renderSync();return}
