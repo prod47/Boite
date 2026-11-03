@@ -78,6 +78,17 @@ header{display:flex;align-items:center;gap:8px}
 .confirm button{border-radius:10px;padding:12px;font:700 .95rem var(--ui);border:1px solid var(--line);background:var(--panel)}
 .confirm .yes{background:var(--rec);border-color:var(--rec);color:#1a0302}
 
+.prises{display:flex;align-items:center;gap:6px;border-top:1px solid var(--line);padding-top:12px}
+.plabel{font:700 .68rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);flex:0 0 auto}
+.ptablist{flex:1;min-width:0;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.ptablist::-webkit-scrollbar{display:none}
+.ptab{flex:0 0 auto;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:999px;padding:7px 12px;font:600 .85rem var(--mono);display:flex;align-items:center;gap:6px;white-space:nowrap}
+.ptab[aria-selected="true"]{border-color:var(--fg);color:var(--fg);background:var(--panel)}
+.ptab .rd{width:6px;height:6px;border-radius:50%;background:var(--rec)}
+.ptab .mk{color:var(--muted);font-weight:400}
+.padd{flex:0 0 auto;border:1px solid var(--play);background:transparent;color:var(--play);border-radius:999px;padding:7px 12px;font:700 .85rem var(--ui)}
+.ptrash{flex:0 0 auto;width:36px;height:34px;border:1px solid var(--line);background:transparent;border-radius:999px;display:grid;place-items:center;color:var(--muted)}
+.ptrash svg{width:16px;height:16px}
 .slab{background:#050607;border:1px solid var(--line);border-radius:14px;padding:18px 14px 14px;display:flex;flex-direction:column;align-items:center;gap:6px;overflow:hidden}
 .state{font:600 .7rem var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;text-align:center}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--line);flex:0 0 auto}
@@ -146,7 +157,7 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
     <p class="err" id="login-error" role="alert"></p>
     <button class="enter" type="submit" id="login-btn">Entrer</button>
   </form>
-  <p class="hint">Mot de passe admin ou invité. Les prises sont enregistrées en ligne : rien ne se perd si le téléphone efface sa mémoire.</p>
+  <p class="hint">Mot de passe admin ou invité. Les vidéos et leurs prises sont enregistrées en ligne : rien ne se perd si le téléphone efface sa mémoire.</p>
 </section>
 
 <!-- App -->
@@ -171,21 +182,31 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
   </section>
 
   <div class="seg" id="viewSeg" hidden>
-    <button id="vMine" aria-pressed="true">Mes prises</button>
+    <button id="vMine" aria-pressed="true">Mes vidéos</button>
     <button id="vGuest" aria-pressed="false">Invités</button>
   </div>
-  <p class="ro" id="roNote" hidden>Prises des invités · lecture seule. Tu peux les exporter pour Premiere.</p>
+  <p class="ro" id="roNote" hidden>Vidéos des invités · lecture seule. Tu peux les exporter pour Premiere.</p>
 
-  <nav class="tabs" aria-label="Prises">
-    <div class="tablist" id="tablist" role="tablist"></div>
-    <button class="add" id="addTake" aria-label="Ajouter une prise">+</button>
+  <nav class="tabs" aria-label="Vidéos">
+    <div class="tablist" id="vidlist" role="tablist"></div>
+    <button class="add" id="addVideo" aria-label="Ajouter une vidéo">+</button>
   </nav>
-  <div class="takebar" id="takebar">
-    <input class="takename" id="takeName" aria-label="Renommer la prise">
-    <button class="trash" id="trash" aria-label="Supprimer cette prise">
+  <div class="takebar" id="vidbar">
+    <input class="takename" id="vidName" aria-label="Renommer la vidéo">
+    <button class="trash" id="vidTrash" aria-label="Supprimer cette vidéo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>
     </button>
   </div>
+
+  <div class="prises">
+    <span class="plabel">Prises</span>
+    <div class="ptablist" id="prislist" role="tablist"></div>
+    <button class="padd" id="addPrise">+ Prise</button>
+    <button class="ptrash" id="priseTrash" aria-label="Supprimer cette prise">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
+  </div>
+
   <div class="confirm" id="confirm" hidden>
     <p id="confirmTxt"></p>
     <div><button id="cNo">Annuler</button><button class="yes" id="cYes">Supprimer</button></div>
@@ -251,78 +272,97 @@ const newId=()=>(crypto.randomUUID?crypto.randomUUID():Date.now().toString(36)+M
 const store={get(k){try{return JSON.parse(localStorage.getItem(k)||"null")}catch(e){return null}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 
 let sb=null,user=null,role=null,KEY="";
-let S=null;            // own state: {settings, takes, cur, next, dirty[], tomb[], setDirty}
-let G=[];              // guest takes (admin only, read-only)
-let view="mine",gcur=null;
+let S=null;            // own state: {settings, videos, cur, nextVideo, dirty[], tomb[], setDirty}
+let G=[];              // guest videos (admin only, read-only)
+let view="mine",gcur=null;const gpcur={};
 
-function newTake(n,fresh){const now=Date.now();return{id:newId(),name:"Prise "+n,running:false,startAt:0,acc:0,markers:[],c:now,u:now,...(fresh?{fresh:true}:{})}}
+// A video is a folder of takes ("prises"); each take has its own chrono and markers.
+// One video = one row online, so a whole folder syncs together.
+function newPrise(n){return{id:newId(),name:"Prise "+pad2(n),running:false,startAt:0,acc:0,markers:[],c:Date.now()}}
+function newVideo(n,fresh){const now=Date.now(),p=newPrise(1);return{id:newId(),name:"Vidéo "+pad2(n),prises:[p],cur:p.id,next:2,c:now,u:now,...(fresh?{fresh:true}:{})}}
+function fromOldTake(t){ // a take saved by the previous version becomes a video holding it as Prise 01
+  const p={id:t.id+"-p1",name:"Prise 01",running:!!t.running,startAt:t.startAt||0,acc:t.acc||0,markers:t.markers||[],c:t.c||Date.now()};
+  const m=/^Prise\s*(\d+)$/.exec(t.name||"");
+  return{id:t.id,name:m?"Vidéo "+pad2(+m[1]):(t.name||"Vidéo"),prises:[p],cur:p.id,next:2,c:t.c||Date.now(),u:Date.now()};
+}
+const isOld=d=>d&&!Array.isArray(d.prises)&&Array.isArray(d.markers);
 function loadState(){
   let s=store.get(KEY);
-  if(!s||!Array.isArray(s.takes))s={settings:{session:"",fps:"25",labels:DEF_LABELS.map(l=>({...l})),u:0},takes:[],next:1,dirty:[],tomb:[],setDirty:false};
+  if(!s||typeof s!=="object")s={};
+  s.settings=s.settings||{session:"",fps:"25",labels:DEF_LABELS.map(l=>({...l})),u:0};
   s.dirty=s.dirty||[];s.tomb=s.tomb||[];
+  if(!Array.isArray(s.videos)){
+    s.videos=(s.takes||[]).filter(t=>!(t.fresh&&!t.markers.length&&!t.acc)).map(t=>{s.dirty.push(t.id);return fromOldTake(t)});
+    s.nextVideo=s.videos.length+1;delete s.takes;delete s.next;
+  }
   if(ensureLabels(s.settings)){s.settings.u=Date.now();s.setDirty=true}
-  if(!s.takes.length){s.takes.push(newTake(s.next++,true))}
-  if(!s.takes.find(t=>t.id===s.cur))s.cur=s.takes[0].id;
+  if(!s.videos.length){s.nextVideo=1;s.videos.push(newVideo(s.nextVideo++,true))}
+  if(!s.videos.find(v=>v.id===s.cur))s.cur=s.videos[0].id;
   return s;
 }
 function persist(){store.set(KEY,S)}
 
-// ---------- Current take ----------
+// ---------- Current video / take ----------
 const ro=()=>view==="guest";
-function T(){if(!S)return null;return ro()?G.find(t=>t.id===gcur)||null:S.takes.find(t=>t.id===S.cur)}
-const elapsed=t=>t?t.acc+(t.running?Date.now()-t.startAt:0):0;
+function V(){if(!S)return null;return ro()?G.find(v=>v.id===gcur)||null:S.videos.find(v=>v.id===S.cur)}
+function P(){const v=V();if(!v)return null;const id=ro()?gpcur[v.id]:v.cur;return v.prises.find(p=>p.id===id)||v.prises[0]}
+const elapsed=p=>p?p.acc+(p.running?Date.now()-p.startAt:0):0;
 function hms(ms){const s=Math.floor(ms/1000);return [Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(pad2)}
 const hmsTxt=ms=>hms(ms).join(":");
-function lab(m){ // own takes follow the current button names; guest takes keep what was recorded
+function lab(m){ // own videos follow the current button names; guest videos keep what was recorded
   const l=!ro()&&S.settings.labels.find(x=>x.id===m.l);
   return l?{name:l.name,color:l.color}:{name:m.n||"Marqueur",color:PAL[m.c]?m.c:"bleu"};
 }
+const markerCount=v=>v.prises.reduce((a,p)=>a+p.markers.length,0);
+const anyRunning=()=>!!S&&S.videos.some(v=>v.prises.some(p=>p.running));
 
 // ---------- Changes (each one is saved locally, then sent online) ----------
-function touch(t){if(t){t.u=Date.now();delete t.fresh;if(!S.dirty.includes(t.id))S.dirty.push(t.id)}persist();pushSoon()}
+function touch(v){if(v){v.u=Date.now();delete v.fresh;if(!S.dirty.includes(v.id))S.dirty.push(v.id)}persist();pushSoon()}
 function touchSettings(){S.settings.u=Date.now();S.setDirty=true;persist();pushSoon()}
 
 // ---------- Render ----------
-function renderTC(){const [h,m,s]=hms(elapsed(T()));$("tc").innerHTML=`${h}<span class="sep">:</span>${m}<span class="sep">:</span>${s}`}
+function renderTC(){const [h,m,s]=hms(elapsed(P()));$("tc").innerHTML=`${h}<span class="sep">:</span>${m}<span class="sep">:</span>${s}`}
 function renderState(){
-  const t=T();
-  $("screen-app").classList.toggle("running",!!(t&&t.running));
-  $("go").textContent=t&&t.running?"Arrêter":(t&&t.acc>0?"Reprendre":"Lancer");
-  $("go").classList.toggle("stop",!!(t&&t.running));
-  $("stateTxt").textContent=t?(t.running?"En cours":(t.acc>0?"En pause":"Prêt"))+" · "+t.name:"Aucune prise invité";
+  const v=V(),p=P();
+  $("screen-app").classList.toggle("running",!!(p&&p.running));
+  $("go").textContent=p&&p.running?"Arrêter":(p&&p.acc>0?"Reprendre":"Lancer");
+  $("go").classList.toggle("stop",!!(p&&p.running));
+  $("stateTxt").textContent=p?(p.running?"En cours":(p.acc>0?"En pause":"Prêt"))+` · ${v.name} · ${p.name}`:"Aucune vidéo invité";
   $("settingsBtn").textContent=`${S.settings.fps.replace(".",",")} i/s · Réglages`;
 }
 function renderView(){
-  const admin=role==="admin";
-  $("viewSeg").hidden=!admin;
+  $("viewSeg").hidden=role!=="admin";
   $("vMine").setAttribute("aria-pressed",String(!ro()));
   $("vGuest").setAttribute("aria-pressed",String(ro()));
   $("vGuest").textContent=`Invités (${G.length})`;
   $("roNote").hidden=!ro();
-  ["addTake","takebar","transport","pads"].forEach(id=>$(id).hidden=ro());
-  $("sub").hidden=ro();
+  ["addVideo","vidbar","addPrise","priseTrash","transport","pads","sub"].forEach(id=>$(id).hidden=ro());
+  $("slab").hidden=ro()&&!V();
   if(ro())$("confirm").hidden=true;
 }
+function tabBtn(cls,text,selected,running,extra,onclick){
+  const b=document.createElement("button");b.className=cls;b.setAttribute("role","tab");b.setAttribute("aria-selected",String(selected));
+  if(running){const d=document.createElement("span");d.className="rd";b.appendChild(d)}
+  b.appendChild(document.createTextNode(text));
+  if(extra){const e=document.createElement("span");e.className="mk";e.textContent=extra;b.appendChild(e)}
+  b.onclick=onclick;if(selected)requestAnimationFrame(()=>b.scrollIntoView({inline:"nearest",block:"nearest"}));
+  return b;
+}
 function renderTabs(){
-  const list=$("tablist");list.innerHTML="";
-  const takes=ro()?G:S.takes,cur=ro()?gcur:S.cur;
-  takes.forEach(t=>{
-    const b=document.createElement("button");
-    b.className="tab";b.setAttribute("role","tab");b.setAttribute("aria-selected",String(t.id===cur));
-    if(t.running){const d=document.createElement("span");d.className="rd";b.appendChild(d)}
-    b.appendChild(document.createTextNode(t.name));
-    b.onclick=()=>switchTake(t.id);
-    list.appendChild(b);
-    if(t.id===cur)requestAnimationFrame(()=>b.scrollIntoView({inline:"nearest",block:"nearest"}));
-  });
-  if(!ro()&&document.activeElement!==$("takeName"))$("takeName").value=T().name;
+  const vl=$("vidlist");vl.innerHTML="";
+  const vids=ro()?G:S.videos,cur=V();
+  vids.forEach(v=>vl.appendChild(tabBtn("tab",v.name,cur&&v.id===cur.id,v.prises.some(p=>p.running),"",()=>switchVideo(v.id))));
+  const pl=$("prislist");pl.innerHTML="";
+  const p=P();
+  if(cur)cur.prises.forEach(x=>pl.appendChild(tabBtn("ptab",x.name.replace(/^Prise /,"P"),p&&x.id===p.id,x.running,x.markers.length?" · "+x.markers.length:"",()=>switchPrise(x.id))));
+  if(!ro()&&document.activeElement!==$("vidName"))$("vidName").value=cur.name;
 }
 function renderPads(){
   const box=$("pads");box.innerHTML="";if(ro())return;
   S.settings.labels.forEach(l=>{
     const b=document.createElement("button");
     b.className="pad";b.style.setProperty("--c",PAL[l.color].hex);
-    const n=T().markers.filter(m=>m.l===l.id).length;
+    const n=P().markers.filter(m=>m.l===l.id).length;
     b.innerHTML=`<b></b><span>${n} marqueur${n>1?"s":""}</span>`;
     b.querySelector("b").textContent=l.name;
     b.onclick=()=>addMarker(l,b);
@@ -330,17 +370,17 @@ function renderPads(){
   });
 }
 function renderLog(){
-  const t=T(),ul=$("log");ul.innerHTML="";
-  $("logTitle").textContent="Marqueurs"+(t?" · "+t.name:"");
-  $("count").textContent=t?t.markers.length:0;
-  if(!t||!t.markers.length){ul.innerHTML=`<li class="empty">${ro()?(t?"Aucun marqueur sur cette prise.":"Les invités n'ont encore enregistré aucune prise."):"Aucun marqueur sur cette prise. Touche un bouton de couleur pendant le chrono."}</li>`;return}
-  [...t.markers].reverse().forEach((m,i)=>{
+  const v=V(),p=P(),ul=$("log");ul.innerHTML="";
+  $("logTitle").textContent="Marqueurs"+(p?` · ${v.name} · ${p.name}`:"");
+  $("count").textContent=p?p.markers.length:0;
+  if(!p||!p.markers.length){ul.innerHTML=`<li class="empty">${ro()?(p?"Aucun marqueur sur cette prise.":"Les invités n'ont encore enregistré aucune vidéo."):"Aucun marqueur sur cette prise. Touche un bouton de couleur pendant le chrono."}</li>`;return}
+  [...p.markers].reverse().forEach((m,i)=>{
     const l=lab(m),li=document.createElement("li");
     li.innerHTML=`<span class="bar" style="--c:${PAL[l.color].hex}"></span><span class="t">${hmsTxt(m.ms)}</span><span class="n"></span>`;
     li.querySelector(".n").textContent=l.name;
-    const sm=document.createElement("small");sm.textContent="Marqueur "+(t.markers.length-i);li.querySelector(".n").appendChild(sm);
+    const sm=document.createElement("small");sm.textContent="Marqueur "+(p.markers.length-i);li.querySelector(".n").appendChild(sm);
     if(!ro()){const d=document.createElement("button");d.className="del";d.setAttribute("aria-label","Supprimer le marqueur");d.textContent="×";
-      d.onclick=()=>{t.markers=t.markers.filter(x=>x!==m);touch(t);renderLog();renderPads();toast("Marqueur supprimé")};li.appendChild(d)}
+      d.onclick=()=>{p.markers=p.markers.filter(x=>x!==m);touch(v);renderLog();renderPads();renderTabs();toast("Marqueur supprimé")};li.appendChild(d)}
     ul.appendChild(li);
   });
 }
@@ -360,51 +400,63 @@ function renderEdit(){
 }
 function renderAll(){renderView();renderTabs();renderState();renderTC();renderPads();renderLog();renderEdit();renderSync()}
 
-// ---------- Takes ----------
-function hideConfirm(){$("confirm").hidden=true}
-function switchTake(id){if(ro())gcur=id;else{S.cur=id;persist()}hideConfirm();disarmReset();renderAll()}
-function setView(v){view=v;if(v==="guest"&&!G.find(t=>t.id===gcur))gcur=G[0]&&G[0].id;hideConfirm();disarmReset();renderAll()}
+// ---------- Videos and takes ----------
+let pending=null;
+function hideConfirm(){$("confirm").hidden=true;pending=null}
+function ask(text,fn){$("confirmTxt").textContent=text;pending=fn;$("confirm").hidden=false}
+$("cNo").onclick=hideConfirm;
+$("cYes").onclick=()=>{const fn=pending;hideConfirm();if(fn)fn()};
+function switchVideo(id){if(ro())gcur=id;else{S.cur=id;persist()}hideConfirm();disarmReset();renderAll()}
+function switchPrise(id){const v=V();if(ro())gpcur[v.id]=id;else{v.cur=id;persist()}hideConfirm();disarmReset();renderAll()}
+function setView(w){view=w;if(w==="guest"&&!G.find(v=>v.id===gcur))gcur=G[0]&&G[0].id;hideConfirm();disarmReset();renderAll()}
 $("vMine").onclick=()=>setView("mine");
 $("vGuest").onclick=()=>{setView("guest");pull()};
-$("addTake").onclick=()=>{const t=newTake(S.next++);S.takes.push(t);S.cur=t.id;touch(t);hideConfirm();disarmReset();renderAll();toast(t.name+" ajoutée")};
-$("takeName").oninput=e=>{const t=T();t.name=e.target.value.trim()||"Sans nom";touch(t);renderTabs();renderState();renderLog()};
-$("takeName").onblur=e=>{if(!e.target.value.trim())e.target.value=T().name};
-$("trash").onclick=()=>{
-  const t=T(),n=t.markers.length;
-  $("confirmTxt").textContent=`Supprimer « ${t.name} »${n?` et ses ${n} marqueur${n>1?"s":""}`:""} ? Cette action est définitive.`;
-  $("confirm").hidden=false;
+$("addVideo").onclick=()=>{const v=newVideo(S.nextVideo++);S.videos.push(v);S.cur=v.id;touch(v);hideConfirm();disarmReset();renderAll();toast(v.name+" créée · Prise 01")};
+$("addPrise").onclick=()=>{const v=V(),p=newPrise(v.next++);v.prises.push(p);v.cur=p.id;touch(v);hideConfirm();disarmReset();renderAll();toast(`${v.name} · ${p.name} ajoutée`)};
+$("vidName").oninput=e=>{const v=V();v.name=e.target.value.trim()||"Sans nom";touch(v);renderTabs();renderState();renderLog()};
+$("vidName").onblur=e=>{if(!e.target.value.trim())e.target.value=V().name};
+$("vidTrash").onclick=()=>{
+  const v=V(),n=v.prises.length,m=markerCount(v);
+  ask(`Supprimer « ${v.name} », ses ${n} prise${n>1?"s":""}${m?` et ses ${m} marqueur${m>1?"s":""}`:""} ? Cette action est définitive.`,()=>{
+    const i=S.videos.findIndex(x=>x.id===v.id);
+    S.videos.splice(i,1);S.dirty=S.dirty.filter(x=>x!==v.id);S.tomb.push(v.id);
+    if(!S.videos.length){S.nextVideo=1;S.videos.push(newVideo(S.nextVideo++,true))}
+    S.cur=S.videos[Math.min(i,S.videos.length-1)].id;
+    persist();pushSoon();keepAwake(anyRunning());renderAll();toast(`« ${v.name} » supprimée`);
+  });
 };
-$("cNo").onclick=hideConfirm;
-$("cYes").onclick=()=>{
-  const i=S.takes.findIndex(t=>t.id===S.cur),t=S.takes[i];
-  S.takes.splice(i,1);S.dirty=S.dirty.filter(x=>x!==t.id);S.tomb.push(t.id);
-  if(!S.takes.length){S.next=1;S.takes.push(newTake(S.next++,true))}
-  S.cur=S.takes[Math.min(i,S.takes.length-1)].id;
-  persist();pushSoon();hideConfirm();renderAll();toast(`« ${t.name} » supprimée`);
+$("priseTrash").onclick=()=>{
+  const v=V(),p=P(),m=p.markers.length;
+  ask(`Supprimer « ${v.name} · ${p.name} »${m?` et ses ${m} marqueur${m>1?"s":""}`:""} ? Cette action est définitive.`,()=>{
+    const i=v.prises.findIndex(x=>x.id===p.id);
+    v.prises.splice(i,1);
+    if(!v.prises.length){v.next=1;v.prises.push(newPrise(v.next++))}
+    v.cur=v.prises[Math.min(i,v.prises.length-1)].id;
+    touch(v);keepAwake(anyRunning());renderAll();toast(`« ${p.name} » supprimée`);
+  });
 };
 
 let wake=null;
 async function keepAwake(on){try{if(on&&!wake&&navigator.wakeLock){wake=await navigator.wakeLock.request("screen");wake.addEventListener("release",()=>wake=null)}if(!on&&wake){await wake.release();wake=null}}catch(e){}}
-const anyRunning=()=>S&&S.takes.some(t=>t.running);
 
 $("go").onclick=()=>{
-  const t=T();
-  if(t.running){t.acc+=Date.now()-t.startAt;t.running=false}else{t.startAt=Date.now();t.running=true}
-  keepAwake(anyRunning());touch(t);renderState();renderTC();renderTabs();
+  const v=V(),p=P();
+  if(p.running){p.acc+=Date.now()-p.startAt;p.running=false}else{p.startAt=Date.now();p.running=true}
+  keepAwake(anyRunning());touch(v);renderState();renderTC();renderTabs();
 };
 let armT;
 function disarmReset(){clearTimeout(armT);const b=$("reset");b.classList.remove("armed");b.textContent="Remise à zéro"}
 $("reset").onclick=()=>{
   const b=$("reset");
   if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";armT=setTimeout(disarmReset,3000);return}
-  disarmReset();const t=T();t.running=false;t.acc=0;t.markers=[];touch(t);keepAwake(anyRunning());renderAll();toast(t.name+" remise à zéro");
+  disarmReset();const v=V(),p=P();p.running=false;p.acc=0;p.markers=[];touch(v);keepAwake(anyRunning());renderAll();toast(`${p.name} remise à zéro`);
 };
 function addMarker(l,btn){
-  const t=T(),ms=elapsed(t);
-  t.markers.push({l:l.id,ms,n:l.name,c:l.color});t.markers.sort((a,b)=>a.ms-b.ms);touch(t);
+  const v=V(),p=P(),ms=elapsed(p);
+  p.markers.push({l:l.id,ms,n:l.name,c:l.color});p.markers.sort((a,b)=>a.ms-b.ms);touch(v);
   btn.classList.remove("flash");void btn.offsetWidth;btn.classList.add("flash");
   if(navigator.vibrate)navigator.vibrate(30);
-  renderLog();renderPads();toast(`${l.name} · ${hmsTxt(ms)}`);
+  renderLog();renderPads();renderTabs();toast(`${l.name} · ${hmsTxt(ms)}`);
 }
 $("sess").oninput=e=>{S.settings.session=e.target.value;touchSettings()};
 $("fps").onchange=e=>{S.settings.fps=e.target.value;touchSettings();renderState()};
@@ -423,11 +475,11 @@ async function push(){
   try{
     const now=new Date().toISOString();
     const snap={};const rows=[];
-    S.dirty.forEach(id=>{const t=S.takes.find(x=>x.id===id);if(t){snap[id]=t.u;rows.push({id,user_id:user.id,data:t,deleted:false,updated_at:now})}});
+    S.dirty.forEach(id=>{const v=S.videos.find(x=>x.id===id);if(v){snap[id]=v.u;rows.push({id,user_id:user.id,data:v,deleted:false,updated_at:now})}});
     const tomb=[...S.tomb];
     tomb.forEach(id=>rows.push({id,user_id:user.id,data:{},deleted:true,updated_at:now}));
     if(rows.length){const r=await sb.from("chrono_takes").upsert(rows);if(r.error)throw r.error}
-    S.dirty=S.dirty.filter(id=>{const t=S.takes.find(x=>x.id===id);return t&&snap[id]!==t.u});
+    S.dirty=S.dirty.filter(id=>{const v=S.videos.find(x=>x.id===id);return v&&snap[id]!==v.u});
     S.tomb=S.tomb.filter(id=>!tomb.includes(id));
     if(S.setDirty){const u=S.settings.u;const r=await sb.from("chrono_settings").upsert({user_id:user.id,data:S.settings,updated_at:now});if(r.error)throw r.error;if(S.settings.u===u)S.setDirty=false}
     persist();lastOk=Date.now();syncErr=null;
@@ -443,38 +495,40 @@ async function pull(){
       sb.from("chrono_takes").select("id,user_id,data,deleted"),
       sb.from("chrono_settings").select("data").eq("user_id",user.id).maybeSingle()]);
     if(tr.error)throw tr.error;
-    const rows=tr.data||[];
+    const rows=(tr.data||[]).map(r=>isOld(r.data)&&!r.deleted?{...r,data:fromOldTake(r.data),old:true}:r);
     const mine=rows.filter(r=>r.user_id===user.id);
     const ids=new Set(mine.map(r=>r.id));
     const live=mine.filter(r=>!r.deleted);
-    // takes deleted elsewhere
-    mine.filter(r=>r.deleted).forEach(r=>{S.takes=S.takes.filter(t=>t.id!==r.id);S.dirty=S.dirty.filter(x=>x!==r.id)});
-    // newer versions from another device
+    // videos deleted elsewhere
+    mine.filter(r=>r.deleted).forEach(r=>{S.videos=S.videos.filter(v=>v.id!==r.id);S.dirty=S.dirty.filter(x=>x!==r.id)});
+    // newer versions from another device; rows saved by the previous version are converted and re-sent
     live.forEach(r=>{
       if(S.tomb.includes(r.id))return;
-      const i=S.takes.findIndex(t=>t.id===r.id),d=r.data;
-      if(i<0)S.takes.push(d);
-      else if(!S.dirty.includes(r.id)&&(d.u||0)>(S.takes[i].u||0))S.takes[i]=d;
+      const i=S.videos.findIndex(v=>v.id===r.id),d=r.data;
+      if(i<0)S.videos.push(d);
+      else if(!S.dirty.includes(r.id)&&(d.u||0)>(S.videos[i].u||0)&&!r.old)S.videos[i]=d;
+      if(r.old&&!S.dirty.includes(r.id))S.dirty.push(r.id);
     });
-    // local takes the server has never seen: send them, except the blank starter take
-    S.takes=S.takes.filter(t=>{
-      if(ids.has(t.id))return true;
-      if(t.fresh&&!t.markers.length&&!t.acc&&!t.running&&live.length)return false;
-      if(!t.fresh&&!S.dirty.includes(t.id))S.dirty.push(t.id);
+    // local videos the server has never seen: send them, except the blank starter video
+    S.videos=S.videos.filter(v=>{
+      if(ids.has(v.id))return true;
+      if(v.fresh&&!markerCount(v)&&!v.prises.some(p=>p.acc||p.running)&&live.length)return false;
+      if(!v.fresh&&!S.dirty.includes(v.id))S.dirty.push(v.id);
       return true;
     });
-    S.takes.sort((a,b)=>(a.c||0)-(b.c||0));
-    if(!S.takes.length)S.takes.push(newTake(1,true));
-    S.next=Math.max(S.next||1,S.takes.length+1);
-    if(!S.takes.find(t=>t.id===S.cur))S.cur=S.takes[S.takes.length-1].id;
+    S.videos.sort((a,b)=>(a.c||0)-(b.c||0));
+    if(!S.videos.length)S.videos.push(newVideo(1,true));
+    S.nextVideo=Math.max(S.nextVideo||1,S.videos.length+1);
+    if(!S.videos.find(v=>v.id===S.cur))S.cur=S.videos[S.videos.length-1].id;
     if(!sr.error&&sr.data&&sr.data.data&&(sr.data.data.u||0)>(S.settings.u||0)&&!S.setDirty){S.settings=sr.data.data;if(ensureLabels(S.settings)){S.settings.u=Date.now();S.setDirty=true}}
     if(role==="admin"){
       G=rows.filter(r=>r.user_id!==user.id&&!r.deleted).map(r=>r.data).sort((a,b)=>(a.c||0)-(b.c||0));
-      if(!G.find(t=>t.id===gcur))gcur=G[0]&&G[0].id;
+      if(!G.find(v=>v.id===gcur))gcur=G[0]&&G[0].id;
     }
     persist();lastOk=Date.now();syncErr=null;
   }catch(e){syncErr=e}
-  if(!document.activeElement||!["takeName","sess"].includes(document.activeElement.id)&&!document.activeElement.closest("#labelEdit"))renderAll();else renderSync();
+  const a=document.activeElement;
+  if(!a||!["vidName","sess"].includes(a.id)&&!a.closest("#labelEdit"))renderAll();else renderSync();
   push();
 }
 function renderSync(){
@@ -494,21 +548,21 @@ document.addEventListener("visibilitychange",()=>{
 });
 setInterval(()=>{if(document.visibilityState==="visible")pull()},30000);
 
-// ---------- Export ----------
+// ---------- Export: one folder per video, one Premiere XML per take ----------
 const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 function rateInfo(){const f=parseFloat(S.settings.fps);const ntsc=[23.976,29.97,59.94].includes(f);return{tb:ntsc?Math.round(f):f,ntsc,real:ntsc?Math.round(f)*1000/1001:f}}
-function seqName(t){const s=S.settings.session.trim();return (s?s+" – ":"")+(ro()?"Invité – ":"")+t.name}
-function buildXML(t){
+function seqName(v,p){const s=S.settings.session.trim();return (s?s+" – ":"")+(ro()?"Invité – ":"")+v.name+" – "+p.name}
+function buildXML(v,p){
   const r=rateInfo(),rate=`<rate><timebase>${r.tb}</timebase><ntsc>${r.ntsc?"TRUE":"FALSE"}</ntsc></rate>`;
-  const last=t.markers.length?t.markers[t.markers.length-1].ms:0;
-  const dur=Math.max(Math.round((Math.max(last,elapsed(t))/1000+10)*r.real),r.tb*10);
-  const mk=t.markers.map((m,i)=>{const l=lab(m);const f=Math.round(m.ms/1000*r.real);
-    return `      <marker><name>${esc(l.name)}</name><comment>${esc(`${t.name} · Marqueur ${i+1} · ${hmsTxt(m.ms)}`)}</comment><in>${f}</in><out>-1</out><pproColor>${PAL[l.color].p}</pproColor></marker>`}).join("\n");
+  const last=p.markers.length?p.markers[p.markers.length-1].ms:0;
+  const dur=Math.max(Math.round((Math.max(last,elapsed(p))/1000+10)*r.real),r.tb*10);
+  const mk=p.markers.map((m,i)=>{const l=lab(m);const f=Math.round(m.ms/1000*r.real);
+    return `      <marker><name>${esc(l.name)}</name><comment>${esc(`${v.name} · ${p.name} · Marqueur ${i+1} · ${hmsTxt(m.ms)}`)}</comment><in>${f}</in><out>-1</out><pproColor>${PAL[l.color].p}</pproColor></marker>`}).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="5">
-  <sequence id="chrono-${esc(t.id)}">
-    <name>${esc(seqName(t))}</name>
+  <sequence id="chrono-${esc(p.id)}">
+    <name>${esc(seqName(v,p))}</name>
     <duration>${dur}</duration>
     ${rate}
     <timecode>${rate}<string>00:00:00:00</string><frame>0</frame><displayformat>NDF</displayformat></timecode>
@@ -521,10 +575,10 @@ ${mk}
 </xmeml>
 `;
 }
-function buildCSV(takes){
+function buildCSV(vids){
   const q=s=>`"${String(s).replace(/"/g,'""')}"`,rows=[];
-  takes.forEach(t=>t.markers.forEach((m,i)=>{const l=lab(m);rows.push(`${q(t.name)};${i+1};${hmsTxt(m.ms)};${q(l.name)};${PAL[l.color].n}`)}));
-  return "﻿Prise;N°;Timecode;Type;Couleur\n"+rows.join("\n")+"\n";
+  vids.forEach(v=>v.prises.forEach(p=>p.markers.forEach((m,i)=>{const l=lab(m);rows.push(`${q(v.name)};${q(p.name)};${i+1};${hmsTxt(m.ms)};${q(l.name)};${PAL[l.color].n}`)})));
+  return "﻿Vidéo;Prise;N°;Timecode;Type;Couleur\n"+rows.join("\n")+"\n";
 }
 const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
 function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
@@ -546,14 +600,19 @@ function zip(files){
   e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cl,true);e.setUint32(16,off,true);
   return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:"application/zip"});
 }
-const clean=s=>s.replace(/[^\w\-À-ÿ ]+/g,"").trim().replace(/\s+/g,"_")||"Prise";
+const clean=s=>s.replace(/[^\w\-À-ÿ ]+/g,"").trim().replace(/\s+/g,"_")||"Sans_nom";
 function baseName(){const d=new Date();return clean(S.settings.session.trim()||"Marqueurs")+(ro()?"_Invites":"")+`_${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
 $("dl").onclick=()=>{
-  const takes=(ro()?G:S.takes).filter(t=>t.markers.length);
-  if(!takes.length){toast("Aucun marqueur à exporter");return}
-  const b=baseName(),used={};
-  const files=takes.map(t=>{let n=clean(t.name);used[n]=(used[n]||0)+1;if(used[n]>1)n+="_"+used[n];return{name:`${b}_${n}.xml`,text:buildXML(t)}});
-  files.push({name:b+".csv",text:buildCSV(takes)});
+  const vids=(ro()?G:S.videos).filter(v=>markerCount(v));
+  if(!vids.length){toast("Aucun marqueur à exporter");return}
+  const b=baseName(),usedV={},files=[];
+  vids.forEach(v=>{
+    let folder=clean(v.name);usedV[folder]=(usedV[folder]||0)+1;if(usedV[folder]>1)folder+="_"+usedV[folder];
+    const usedP={};
+    v.prises.filter(p=>p.markers.length).forEach(p=>{let n=clean(p.name);usedP[n]=(usedP[n]||0)+1;if(usedP[n]>1)n+="_"+usedP[n];
+      files.push({name:`${folder}/${folder}_${n}.xml`,text:buildXML(v,p)})});
+  });
+  files.push({name:b+".csv",text:buildCSV(vids)});
   const url=URL.createObjectURL(zip(files)),a=document.createElement("a");
   a.href=url;a.download=b+".zip";document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),60000);
@@ -581,11 +640,11 @@ $("login-form").addEventListener("submit",async e=>{
 });
 $("logout").onclick=async()=>{
   clearTimeout(pushTimer);await push();
-  if(S&&(S.dirty.length||S.tomb.length||S.setDirty)){toast("Des prises ne sont pas encore en ligne · reconnecte-toi au réseau d'abord");return}
+  if(S&&(S.dirty.length||S.tomb.length||S.setDirty)){toast("Des vidéos ne sont pas encore en ligne · reconnecte-toi au réseau d'abord");return}
   try{await sb.auth.signOut()}catch(e){}
   location.reload();
 };
-setInterval(()=>{const t=T();if(t&&t.running)renderTC()},250);
+setInterval(()=>{const p=P();if(p&&p.running)renderTC()},250);
 
 (async function boot(){
   if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
