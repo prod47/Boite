@@ -129,9 +129,10 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
 .del{border:0;background:none;color:var(--muted);font-size:1.2rem;padding:4px 8px}
 .log .empty{display:block;padding:18px;color:var(--muted);font-size:.9rem;text-align:center}
 
-.bottom{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:4px}
-.dl{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:9px 18px;font:700 .8rem var(--ui);color:var(--muted)}
-.wipe{border:0;background:var(--rec);color:#1a0302;border-radius:999px;padding:9px 16px;font:800 .8rem var(--ui);letter-spacing:.02em}
+.bottom{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-top:4px}
+.dls{display:flex;flex-wrap:wrap;gap:8px}
+.dl{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:9px 14px;font:700 .8rem var(--ui);color:var(--muted)}
+.wipe{margin-left:auto;border:0;background:var(--rec);color:#1a0302;border-radius:999px;padding:9px 16px;font:800 .8rem var(--ui);letter-spacing:.02em}
 .sync{margin:0;text-align:center;font:500 .72rem var(--mono);color:var(--muted)}
 .sync::before{content:"● "}
 .sync.ok::before{color:var(--play)}
@@ -231,7 +232,10 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
   <ul class="log" id="log"></ul>
 
   <div class="bottom">
-    <button class="dl" id="dl">Télécharger le zip</button>
+    <div class="dls">
+      <button class="dl" id="dlOne">Zip · cette prise</button>
+      <button class="dl" id="dlAll">Zip · tout</button>
+    </div>
     <button class="wipe" id="wipe">Tout réinitialiser</button>
   </div>
   <div class="confirm" id="wipeBox" hidden>
@@ -585,11 +589,6 @@ ${mk}
 </xmeml>
 `;
 }
-function buildCSV(vids){
-  const q=s=>`"${String(s).replace(/"/g,'""')}"`,rows=[];
-  vids.forEach(v=>v.prises.forEach(p=>p.markers.forEach((m,i)=>{const l=lab(m);rows.push(`${q(v.name)};${q(p.name)};${i+1};${hmsTxt(m.ms)};${q(l.name)};${PAL[l.color].n}`)})));
-  return "﻿Vidéo;Prise;N°;Timecode;Type;Couleur\n"+rows.join("\n")+"\n";
-}
 const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
 function crc32(b){let c=0xFFFFFFFF;for(let i=0;i<b.length;i++)c=CRC[(c^b[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
 function zip(files){
@@ -610,8 +609,6 @@ function zip(files){
   e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cl,true);e.setUint32(16,off,true);
   return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:"application/zip"});
 }
-const clean=s=>s.replace(/[^\w\-À-ÿ ]+/g,"").trim().replace(/\s+/g,"_")||"Sans_nom";
-function baseName(){const d=new Date();return clean(S.settings.session.trim()||"Marqueurs")+(ro()?"_Invites":"")+`_${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
 // ---------- Reset everything (own videos only; buttons and settings are kept) ----------
 $("wipe").onclick=()=>{
   const nv=S.videos.length,np=S.videos.reduce((a,v)=>a+v.prises.length,0),nm=S.videos.reduce((a,v)=>a+markerCount(v),0);
@@ -626,21 +623,32 @@ $("wYes").onclick=()=>{
   $("wipeBox").hidden=true;persist();pushSoon();keepAwake(false);hideConfirm();disarmReset();renderAll();
   window.scrollTo({top:0,behavior:"smooth"});toast("Tout est réinitialisé · Vidéo 01 · Prise 01");
 };
-$("dl").onclick=()=>{
-  const vids=(ro()?G:S.videos).filter(v=>markerCount(v));
-  if(!vids.length){toast("Aucun marqueur à exporter");return}
-  const b=baseName(),usedV={},files=[];
-  vids.forEach(v=>{
-    let folder=clean(v.name);usedV[folder]=(usedV[folder]||0)+1;if(usedV[folder]>1)folder+="_"+usedV[folder];
-    const usedP={};
-    v.prises.filter(p=>p.markers.length).forEach(p=>{let n=clean(p.name);usedP[n]=(usedP[n]||0)+1;if(usedP[n]>1)n+="_"+usedP[n];
-      files.push({name:`${folder}/${folder}_${n}.xml`,text:buildXML(v,p)})});
-  });
-  files.push({name:b+".csv",text:buildCSV(vids)});
+// File names keep the names as shown in the app (renamed during the shoot or not), minus the
+// characters Windows and macOS refuse in file names.
+const fileSafe=s=>String(s).replace(/[\/\\:*?"<>|]+/g,"-").replace(/\s+/g," ").trim()||"Sans nom";
+// The zip name itself stays plain ASCII (some browsers drop accented names); the XML names inside keep accents.
+function saveZip(files,name){
   const url=URL.createObjectURL(zip(files)),a=document.createElement("a");
-  a.href=url;a.download=b+".zip";document.body.appendChild(a);a.click();a.remove();
+  a.href=url;a.download=fileSafe(name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7e]/g,"")+".zip";document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),60000);
+}
+function xmlFiles(list){ // list of [video, take]; one XML per take, no folders
+  const used={};
+  return list.map(([v,p])=>{let n=fileSafe(`${v.name} - ${p.name}`);used[n]=(used[n]||0)+1;if(used[n]>1)n+=` (${used[n]})`;return{name:n+".xml",text:buildXML(v,p)}});
+}
+function dateTag(){const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
+$("dlOne").onclick=()=>{
+  const v=V(),p=P();
+  if(!p||!p.markers.length){toast(`Aucun marqueur sur ${p?p.name:"cette prise"}`);return}
+  saveZip(xmlFiles([[v,p]]),`${ro()?"Invité - ":""}${v.name} - ${p.name}`);
 };
+$("dlAll").onclick=()=>{
+  const list=[];(ro()?G:S.videos).forEach(v=>v.prises.forEach(p=>{if(p.markers.length)list.push([v,p])}));
+  if(!list.length){toast("Aucun marqueur à exporter");return}
+  const sess=S.settings.session.trim();
+  saveZip(xmlFiles(list),`${sess||"Chrono"}${ro()?" - Invités":""} - Tout - ${dateTag()}`);
+};
+
 
 // ---------- Login / boot ----------
 function show(id){$("screen-login").hidden=id!=="screen-login";$("screen-app").hidden=id!=="screen-app"}
