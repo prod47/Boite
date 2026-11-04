@@ -89,6 +89,16 @@ header{display:flex;align-items:center;gap:8px}
 .padd{flex:0 0 auto;border:1px solid var(--play);background:transparent;color:var(--play);border-radius:999px;padding:7px 12px;font:700 .85rem var(--ui)}
 .ptrash{flex:0 0 auto;width:36px;height:34px;border:1px solid var(--line);background:transparent;border-radius:999px;display:grid;place-items:center;color:var(--muted)}
 .ptrash svg{width:16px;height:16px}
+.cam{overflow:hidden;padding:0;color:var(--fg)}
+.cam img{width:100%;height:100%;object-fit:cover;display:block}
+.av{width:22px;height:22px;border-radius:50%;object-fit:cover;flex:0 0 auto;margin:-4px 0}
+.ptab .av{width:18px;height:18px}
+.pv{width:100%;max-width:420px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.pv img{width:100%;max-height:60vh;object-fit:contain;border-radius:10px;background:#000}
+.pv p{margin:0;font:600 .78rem var(--mono);letter-spacing:.06em;text-transform:uppercase;text-align:center}
+.nb3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.nb3 button{border-radius:10px;padding:12px 6px;font:700 .9rem var(--ui);border:1px solid var(--line);background:var(--bg)}
+.nb3 button.armed{border-color:var(--rec);background:var(--rec);color:#1a0302}
 .slab{background:#050607;border:1px solid var(--line);border-radius:14px;padding:18px 14px 14px;display:flex;flex-direction:column;align-items:center;gap:6px;overflow:hidden}
 .state{font:600 .7rem var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:8px;text-align:center}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--line);flex:0 0 auto}
@@ -207,6 +217,7 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
   </nav>
   <div class="takebar" id="vidbar">
     <input class="takename" id="vidName" aria-label="Renommer la vidéo">
+    <button class="trash cam" id="vidCam" aria-label="Photo de la vidéo"></button>
     <button class="trash" id="vidTrash" aria-label="Supprimer cette vidéo">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>
     </button>
@@ -216,6 +227,7 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
     <span class="plabel">Prises</span>
     <div class="ptablist" id="prislist" role="tablist"></div>
     <button class="padd" id="addPrise">+ Prise</button>
+    <button class="ptrash cam" id="priseCam" aria-label="Photo de la prise"></button>
     <button class="ptrash" id="priseTrash" aria-label="Supprimer cette prise">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>
     </button>
@@ -262,6 +274,14 @@ h2{font:700 .72rem var(--mono);letter-spacing:.14em;text-transform:uppercase;col
     <input id="noteInput" type="text" autocomplete="off" enterkeyhint="done" aria-label="Texte du marqueur">
     <div class="nb"><button type="button" id="noteSkip">Laisser par défaut</button><button type="submit" id="noteSave">Enregistrer</button></div>
   </form>
+</div>
+<input type="file" id="photoInput" accept="image/*" hidden>
+<div class="note" id="photoBox" hidden role="dialog" aria-labelledby="photoCap">
+  <div class="pv">
+    <img id="photoImg" alt="">
+    <p id="photoCap"></p>
+    <div class="nb3"><button id="phChange">Changer</button><button id="phDel">Supprimer</button><button id="phClose">Fermer</button></div>
+  </div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -341,7 +361,7 @@ function loadState(){
   if(!s.videos.find(v=>v.id===s.cur))s.cur=s.videos[0].id;
   return s;
 }
-function persist(){store.set(KEY,S)}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){try{localStorage.removeItem("chrono-prises-photos");localStorage.setItem(KEY,JSON.stringify(S))}catch(e2){}}}
 
 // ---------- Current video / take ----------
 const ro=()=>view==="guest";
@@ -378,14 +398,15 @@ function renderView(){
   $("vGuest").setAttribute("aria-pressed",String(ro()));
   $("vGuest").textContent=`Invités (${G.length})`;
   $("roNote").hidden=!ro();
-  ["addVideo","vidbar","addPrise","priseTrash","transport","pads","sub","wipe"].forEach(id=>$(id).hidden=ro());
+  ["addVideo","vidName","vidTrash","addPrise","priseTrash","transport","pads","sub","wipe"].forEach(id=>$(id).hidden=ro());
   if(ro())$("wipeBox").hidden=true;
   $("slab").hidden=ro()&&!V();
   if(ro())$("confirm").hidden=true;
 }
-function tabBtn(cls,text,selected,running,extra,onclick){
+function tabBtn(cls,text,selected,running,extra,onclick,photo){
   const b=document.createElement("button");b.className=cls;b.setAttribute("role","tab");b.setAttribute("aria-selected",String(selected));
   if(running){const d=document.createElement("span");d.className="rd";b.appendChild(d)}
+  if(photo&&PH[photo]){const i=document.createElement("img");i.className="av";i.alt="";i.src=PH[photo];b.appendChild(i)}
   b.appendChild(document.createTextNode(text));
   if(extra){const e=document.createElement("span");e.className="mk";e.textContent=extra;b.appendChild(e)}
   b.onclick=onclick;if(selected)requestAnimationFrame(()=>b.scrollIntoView({inline:"nearest",block:"nearest"}));
@@ -394,11 +415,12 @@ function tabBtn(cls,text,selected,running,extra,onclick){
 function renderTabs(){
   const vl=$("vidlist");vl.innerHTML="";
   const vids=ro()?G:S.videos,cur=V();
-  vids.forEach(v=>vl.appendChild(tabBtn("tab",v.name,cur&&v.id===cur.id,v.prises.some(p=>p.running),"",()=>switchVideo(v.id))));
+  vids.forEach(v=>vl.appendChild(tabBtn("tab",v.name,cur&&v.id===cur.id,v.prises.some(p=>p.running),"",()=>switchVideo(v.id),v.photo)));
   const pl=$("prislist");pl.innerHTML="";
   const p=P();
-  if(cur)cur.prises.forEach(x=>pl.appendChild(tabBtn("ptab",x.name.replace(/^Prise /,"P"),p&&x.id===p.id,x.running,x.markers.length?" · "+x.markers.length:"",()=>switchPrise(x.id))));
+  if(cur)cur.prises.forEach(x=>pl.appendChild(tabBtn("ptab",x.name.replace(/^Prise /,"P"),p&&x.id===p.id,x.running,x.markers.length?" · "+x.markers.length:"",()=>switchPrise(x.id),x.photo)));
   if(!ro()&&document.activeElement!==$("vidName"))$("vidName").value=cur.name;
+  renderCams();
 }
 function renderPads(){
   const box=$("pads");box.innerHTML="";if(ro())return;
@@ -465,7 +487,7 @@ $("vidTrash").onclick=()=>{
   const v=V(),n=v.prises.length,m=markerCount(v);
   ask(`Supprimer « ${v.name} », ses ${n} prise${n>1?"s":""}${m?` et ses ${m} marqueur${m>1?"s":""}`:""} ? Cette action est définitive.`,()=>{
     const i=S.videos.findIndex(x=>x.id===v.id);
-    S.videos.splice(i,1);S.dirty=S.dirty.filter(x=>x!==v.id);S.tomb.push(v.id);
+    retireVideoPhotos(v);S.videos.splice(i,1);S.dirty=S.dirty.filter(x=>x!==v.id);S.tomb.push(v.id);
     if(!S.videos.length){S.nextVideo=1;S.videos.push(newVideo(S.nextVideo++,true))}
     S.cur=S.videos[Math.min(i,S.videos.length-1)].id;
     persist();pushSoon();keepAwake(anyRunning());renderAll();toast(`« ${v.name} » supprimée`);
@@ -475,7 +497,7 @@ $("priseTrash").onclick=()=>{
   const v=V(),p=P(),m=p.markers.length;
   ask(`Supprimer « ${v.name} · ${p.name} »${m?` et ses ${m} marqueur${m>1?"s":""}`:""} ? Cette action est définitive.`,()=>{
     const i=v.prises.findIndex(x=>x.id===p.id);
-    v.prises.splice(i,1);
+    if(p.photo)retirePhoto(p.photo);v.prises.splice(i,1);
     if(!v.prises.length){v.next=1;v.prises.push(newPrise(v.next++))}
     v.cur=v.prises[Math.min(i,v.prises.length-1)].id;
     touch(v);keepAwake(anyRunning());renderAll();toast(`« ${p.name} » supprimée`);
@@ -542,10 +564,12 @@ function pushSoon(){clearTimeout(pushTimer);pushTimer=setTimeout(push,600)}
 async function push(){
   if(!sb||!user)return;
   if(pushing){pushAgain=true;return}
-  if(!S.dirty.length&&!S.tomb.length&&!S.setDirty){renderSync();return}
+  if(!S.dirty.length&&!S.tomb.length&&!S.setDirty&&!Object.keys(PHP).length){renderSync();return}
   pushing=true;
   try{
     const now=new Date().toISOString();
+    const up=Object.keys(PHP).slice(0,4);
+    if(up.length){const r=await sb.from("chrono_takes").upsert(up.map(id=>({id,user_id:user.id,data:{kind:"photo",img:PHP[id]},deleted:false,updated_at:now})));if(r.error)throw r.error;up.forEach(id=>delete PHP[id]);savePending();if(Object.keys(PHP).length)pushAgain=true}
     const snap={};const rows=[];
     S.dirty.forEach(id=>{const v=S.videos.find(x=>x.id===id);if(v){snap[id]=v.u;rows.push({id,user_id:user.id,data:v,deleted:false,updated_at:now})}});
     const tomb=[...S.tomb];
@@ -564,7 +588,7 @@ async function pull(){
   if(!sb||!user)return;
   try{
     const [tr,sr]=await Promise.all([
-      sb.from("chrono_takes").select("id,user_id,data,deleted"),
+      sb.from("chrono_takes").select("id,user_id,data,deleted").not("id","like","photo:%"),
       sb.from("chrono_settings").select("data").eq("user_id",user.id).maybeSingle()]);
     if(tr.error)throw tr.error;
     const rows=(tr.data||[]).map(r=>isOld(r.data)&&!r.deleted?{...r,data:fromOldTake(r.data),old:true}:r);
@@ -601,10 +625,10 @@ async function pull(){
   }catch(e){syncErr=e}
   const a=document.activeElement;
   if(!a||!["vidName","sess"].includes(a.id)&&!a.closest("#labelEdit"))renderAll();else renderSync();
-  push();
+  needPhotos();push();
 }
 function renderSync(){
-  const el=$("sync"),pending=S&&(S.dirty.length||S.tomb.length||S.setDirty);
+  const el=$("sync"),pending=S&&(S.dirty.length||S.tomb.length||S.setDirty||Object.keys(PHP).length);
   const d=new Date(lastOk),hm=lastOk?`${pad2(d.getHours())}:${pad2(d.getMinutes())}`:"";
   if(!navigator.onLine){el.className="sync wait";el.textContent=pending?"Hors ligne · enregistré sur le téléphone, envoyé dès le retour du réseau":"Hors ligne · tout est déjà en ligne"}
   else if(syncErr&&pending){el.className="sync bad";el.textContent="Envoi en échec · nouvel essai automatique"}
@@ -653,7 +677,7 @@ function zip(files){
   const enc=new TextEncoder(),parts=[],cen=[];let off=0;
   const d=new Date(),dt=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate(),tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1);
   for(const f of files){
-    const nm=enc.encode(f.name),data=enc.encode(f.text),crc=crc32(data);
+    const nm=enc.encode(f.name),data=f.bytes||enc.encode(f.text),crc=crc32(data);
     const h=new DataView(new ArrayBuffer(30));
     h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(8,0,true);
     h.setUint16(10,tm,true);h.setUint16(12,dt,true);h.setUint32(14,crc,true);h.setUint32(18,data.length,true);h.setUint32(22,data.length,true);h.setUint16(26,nm.length,true);h.setUint16(28,0,true);
@@ -667,6 +691,80 @@ function zip(files){
   e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cl,true);e.setUint32(16,off,true);
   return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:"application/zip"});
 }
+// ---------- Photos (who is filmed): one per video and one per take ----------
+const CAM_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg>';
+const PH={};              // photo id -> image (data URL), whatever its origin
+let PHP={};               // photos taken here and not yet online (kept on the phone until sent)
+const PH_CACHE="chrono-prises-photos";
+try{Object.assign(PH,JSON.parse(localStorage.getItem(PH_CACHE)||"{}"))}catch(e){}
+// The local copy of photos is only a convenience for working offline: it keeps the photos in use and
+// gives way (is emptied) rather than ever taking space from the videos and the photos not yet sent.
+function cachePhotos(){
+  try{const keep={};if(S)[...S.videos,...G].forEach(v=>[v.photo,...v.prises.map(p=>p.photo)].forEach(id=>{if(id&&PH[id]&&!PHP[id])keep[id]=PH[id]}));
+    localStorage.setItem(PH_CACHE,JSON.stringify(keep))}catch(e){try{localStorage.removeItem(PH_CACHE)}catch(e2){}}
+}
+function loadPending(){PHP=store.get(KEY+"-photos")||{};Object.assign(PH,PHP)}
+function savePending(){try{localStorage.setItem(KEY+"-photos",JSON.stringify(PHP))}catch(e){try{localStorage.removeItem(PH_CACHE);localStorage.setItem(KEY+"-photos",JSON.stringify(PHP))}catch(e2){}}}
+function retirePhoto(id){if(!id)return;delete PHP[id];savePending();if(!S.tomb.includes(id))S.tomb.push(id)}
+function retireVideoPhotos(v){retirePhoto(v.photo);v.prises.forEach(p=>retirePhoto(p.photo))}
+const dataBytes=u=>{const b=atob(u.split(",")[1]);const a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a};
+async function loadPhotos(ids){
+  const miss=[...new Set(ids.filter(id=>id&&!PH[id]))];
+  if(!miss.length||!sb||!user)return;
+  try{const r=await sb.from("chrono_takes").select("id,data").in("id",miss);
+    if(!r.error){(r.data||[]).forEach(x=>{if(x.data&&x.data.img)PH[x.id]=x.data.img});cachePhotos()}}catch(e){}
+}
+async function needPhotos(){
+  const all=[...S.videos,...G].flatMap(v=>[v.photo,...v.prises.map(p=>p.photo)]);
+  if(all.some(id=>id&&!PH[id])){await loadPhotos(all);renderTabs()}
+}
+function renderCams(){
+  const v=V(),p=P();
+  [["vidCam",v&&v.photo],["priseCam",p&&p.photo]].forEach(([id,ph])=>{
+    const b=$(id);
+    if(ph&&PH[ph]){b.innerHTML="";const i=document.createElement("img");i.alt="";i.src=PH[ph];b.appendChild(i)}else b.innerHTML=CAM_SVG;
+    b.hidden=ro()&&!ph;
+  });
+}
+function resizePhoto(file){ // small JPEG: enough to recognise someone, light to send from set
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file),img=new Image();
+    img.onload=()=>{const k=Math.min(1,800/Math.max(img.naturalWidth,img.naturalHeight));
+      const c=document.createElement("canvas");c.width=Math.round(img.naturalWidth*k);c.height=Math.round(img.naturalHeight*k);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);URL.revokeObjectURL(url);res(c.toDataURL("image/jpeg",.72))};
+    img.onerror=()=>{URL.revokeObjectURL(url);rej()};img.src=url;
+  });
+}
+let camTarget=null;
+function camObj(t){return t==="video"?V():P()}
+function camLabel(t){const v=V(),p=P();return t==="video"?v.name:`${v.name} · ${p.name}`}
+function pickPhoto(t){camTarget=t;const i=$("photoInput");i.value="";i.click()}
+$("photoInput").addEventListener("change",async e=>{
+  const f=e.target.files&&e.target.files[0];if(!f||!camTarget)return;
+  let url;try{url=await resizePhoto(f)}catch(err){toast("Cette image ne peut pas être lue");return}
+  const v=V(),o=camObj(camTarget);if(!o)return;
+  if(o.photo)retirePhoto(o.photo);
+  const id="photo:"+newId();o.photo=id;PH[id]=url;PHP[id]=url;savePending();cachePhotos();
+  touch(v);closePhoto();renderAll();toast("Photo ajoutée · "+camLabel(camTarget));
+});
+function openPhoto(t){
+  const o=camObj(t);camTarget=t;
+  $("photoImg").src=PH[o.photo]||"";$("photoCap").textContent=camLabel(t);
+  $("phChange").hidden=ro();$("phDel").hidden=ro();disarmPhDel();
+  $("photoBox").hidden=false;
+}
+function closePhoto(){$("photoBox").hidden=true;disarmPhDel()}
+function disarmPhDel(){const b=$("phDel");b.classList.remove("armed");b.textContent="Supprimer"}
+$("vidCam").onclick=()=>{const v=V();if(v&&v.photo&&PH[v.photo])openPhoto("video");else if(!ro())pickPhoto("video")};
+$("priseCam").onclick=()=>{const p=P();if(p&&p.photo&&PH[p.photo])openPhoto("prise");else if(!ro())pickPhoto("prise")};
+$("phChange").onclick=()=>pickPhoto(camTarget);
+$("phClose").onclick=closePhoto;
+$("photoBox").addEventListener("click",e=>{if(e.target.id==="photoBox")closePhoto()});
+$("phDel").onclick=()=>{
+  const b=$("phDel");if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";return}
+  const v=V(),o=camObj(camTarget);retirePhoto(o.photo);delete o.photo;touch(v);closePhoto();renderAll();toast("Photo supprimée");
+};
+
 // ---------- Reset everything (own videos only; buttons and settings are kept) ----------
 $("wipe").onclick=()=>{
   const nv=S.videos.length,np=S.videos.reduce((a,v)=>a+v.prises.length,0),nm=S.videos.reduce((a,v)=>a+markerCount(v),0);
@@ -675,7 +773,7 @@ $("wipe").onclick=()=>{
 };
 $("wNo").onclick=()=>{$("wipeBox").hidden=true};
 $("wYes").onclick=()=>{
-  S.videos.forEach(v=>{if(!S.tomb.includes(v.id))S.tomb.push(v.id)});
+  S.videos.forEach(v=>{retireVideoPhotos(v);if(!S.tomb.includes(v.id))S.tomb.push(v.id)});
   S.dirty=[];S.nextVideo=1;
   const v=newVideo(S.nextVideo++);delete v.fresh;S.videos=[v];S.cur=v.id;S.dirty.push(v.id);
   $("wipeBox").hidden=true;persist();pushSoon();keepAwake(false);hideConfirm();disarmReset();renderAll();
@@ -690,17 +788,22 @@ function saveZip(files,name){
   a.href=url;a.download=fileSafe(name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7e]/g,"")+".zip";document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
-function xmlFiles(list){ // list of [video, take]; one XML per take, no folders
-  const used={};
-  return list.map(([v,p])=>{let n=fileSafe(`${v.name} - ${p.name}`);used[n]=(used[n]||0)+1;if(used[n]>1)n+=` (${used[n]})`;return{name:n+".xml",text:buildXML(v,p)}});
+function xmlFiles(list){ // list of [video, take]; one XML per take, no folders, plus the photos with the same names
+  const used={},out=[],vidPh=new Set();
+  list.forEach(([v,p])=>{let n=fileSafe(`${v.name} - ${p.name}`);used[n]=(used[n]||0)+1;if(used[n]>1)n+=` (${used[n]})`;
+    out.push({name:n+".xml",text:buildXML(v,p)});
+    if(p.photo&&PH[p.photo])out.push({name:n+".jpg",bytes:dataBytes(PH[p.photo])});
+    if(v.photo&&PH[v.photo]&&!vidPh.has(v.id)){vidPh.add(v.id);out.push({name:fileSafe(v.name)+".jpg",bytes:dataBytes(PH[v.photo])})}});
+  return out;
 }
 function dateTag(){const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
-$("dlOne").onclick=()=>{
-  const v=V(),p=P();
+$("dlOne").onclick=async()=>{
+  const v=V(),p=P();await loadPhotos([v.photo,p&&p.photo]);
   if(!p||!p.markers.length){toast(`Aucun marqueur sur ${p?p.name:"cette prise"}`);return}
   saveZip(xmlFiles([[v,p]]),`${ro()?"Invité - ":""}${v.name} - ${p.name}`);
 };
-$("dlAll").onclick=()=>{
+$("dlAll").onclick=async()=>{
+  await loadPhotos((ro()?G:S.videos).flatMap(v=>[v.photo,...v.prises.map(p=>p.photo)]));
   const list=[];(ro()?G:S.videos).forEach(v=>v.prises.forEach(p=>{if(p.markers.length)list.push([v,p])}));
   if(!list.length){toast("Aucun marqueur à exporter");return}
   const sess=S.settings.session.trim();
@@ -712,7 +815,7 @@ $("dlAll").onclick=()=>{
 function show(id){$("screen-login").hidden=id!=="screen-login";$("screen-app").hidden=id!=="screen-app"}
 function enter(u){
   user=u;role=(u.email||"").toLowerCase()===ADMIN_EMAIL?"admin":"invite";
-  KEY="chrono-prises-"+role+"-"+u.id;S=loadState();view="mine";
+  KEY="chrono-prises-"+role+"-"+u.id;S=loadState();view="mine";loadPending();
   $("role").textContent=role==="admin"?"Admin":"Invité";$("role").classList.toggle("guest",role!=="admin");
   show("screen-app");renderAll();pull();if(anyRunning())keepAwake(true);
 }
