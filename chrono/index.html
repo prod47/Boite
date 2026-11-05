@@ -509,7 +509,9 @@ async function keepAwake(on){try{if(on&&!wake&&navigator.wakeLock){wake=await na
 
 $("go").onclick=()=>{
   const v=V(),p=P();
-  if(p.running){p.acc+=Date.now()-p.startAt;p.running=false}else{p.startAt=Date.now();p.running=true}
+  const now=Date.now();p.runs=p.runs||[];
+  if(p.running){p.acc+=now-p.startAt;p.running=false;const r=p.runs[p.runs.length-1];if(r&&!r.end)r.end=now}
+  else{p.startAt=now;p.running=true;p.runs.push({start:now})}
   keepAwake(anyRunning());touch(v);renderState();renderTC();renderTabs();
 };
 let armT;
@@ -517,11 +519,11 @@ function disarmReset(){clearTimeout(armT);const b=$("reset");b.classList.remove(
 $("reset").onclick=()=>{
   const b=$("reset");
   if(!b.classList.contains("armed")){b.classList.add("armed");b.textContent="Confirmer ?";armT=setTimeout(disarmReset,3000);return}
-  disarmReset();const v=V(),p=P();p.running=false;p.acc=0;p.markers=[];touch(v);keepAwake(anyRunning());renderAll();toast(`${p.name} remise à zéro`);
+  disarmReset();const v=V(),p=P();p.running=false;p.acc=0;p.markers=[];p.runs=[];touch(v);keepAwake(anyRunning());renderAll();toast(`${p.name} remise à zéro`);
 };
 function addMarker(l,btn){
   const v=V(),p=P(),ms=elapsed(p);
-  const mk={l:l.id,ms,n:l.name,c:l.color};p.markers.push(mk);p.markers.sort((a,b)=>a.ms-b.ms);touch(v);
+  const mk={l:l.id,ms,n:l.name,c:l.color,at:Date.now()};p.markers.push(mk);p.markers.sort((a,b)=>a.ms-b.ms);touch(v);
   btn.classList.remove("flash");void btn.offsetWidth;btn.classList.add("flash");
   if(navigator.vibrate)navigator.vibrate(30);
   renderLog();renderPads();renderTabs();
@@ -653,7 +655,7 @@ function buildXML(v,p){
   const last=p.markers.length?p.markers[p.markers.length-1].ms:0;
   const dur=Math.max(Math.round((Math.max(last,elapsed(p))/1000+10)*r.real),r.tb*10);
   const mk=p.markers.map((m,i)=>{const l=lab(m);const f=Math.round(m.ms/1000*r.real);
-    return `      <marker><name>${esc(say(m))}</name><comment>${esc(`${l.name} · ${v.name} · ${p.name} · Marqueur ${i+1} · ${hmsTxt(m.ms)}`)}</comment><in>${f}</in><out>-1</out><pproColor>${PAL[l.color].p}</pproColor></marker>`}).join("\n");
+    return `      <marker><name>${esc(say(m))}</name><comment>${esc(`${l.name} · ${v.name} · ${p.name} · Marqueur ${i+1} · ${hmsTxt(m.ms)}${m.at?" · heure réelle "+clock(m.at):""}`)}</comment><in>${f}</in><out>-1</out><pproColor>${PAL[l.color].p}</pproColor></marker>`}).join("\n");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE xmeml>
 <xmeml version="5">
@@ -788,6 +790,25 @@ function saveZip(files,name){
   a.href=url;a.download=fileSafe(name).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7e]/g,"")+".zip";document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(url),60000);
 }
+// Time of day with the phone's UTC offset, e.g. 2026-11-05T14:32:05.120+01:00
+function isoLocal(t){const d=new Date(t),o=-d.getTimezoneOffset(),a=Math.abs(o);
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3,"0")}${o<0?"-":"+"}${pad2(Math.floor(a/60))}:${pad2(a%60)}`}
+const clock=t=>{const d=new Date(t);return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`};
+// Machine-readable description of the shoot, for the pre-editing agent on the PC: the same takes and
+// markers as the XML files, plus the real time of day of each chrono start/stop and of each marker.
+function dataFile(list){
+  const r=rateInfo(),byVid=new Map();
+  list.forEach(([v,p])=>{if(!byVid.has(v.id))byVid.set(v.id,{v,ps:[]});byVid.get(v.id).ps.push(p)});
+  const out={app:"Chrono Prises",format:1,exportedAt:isoLocal(Date.now()),session:S.settings.session.trim(),fps:parseFloat(S.settings.fps),
+    note:"ms = temps du chrono de la prise (0 = Lancer). at = heure réelle du téléphone. runs = chaque Lancer/Arrêter en heure réelle.",
+    videos:[...byVid.values()].map(({v,ps})=>({name:v.name,id:v.id,photo:v.photo&&PH[v.photo]?fileSafe(v.name)+".jpg":null,
+      prises:ps.map(p=>{const base=fileSafe(`${v.name} - ${p.name}`),runs=(p.runs||[]).map(x=>({start:isoLocal(x.start),end:x.end?isoLocal(x.end):null}));
+        return{name:p.name,id:p.id,xml:base+".xml",photo:p.photo&&PH[p.photo]?base+".jpg":null,
+          startedAt:runs.length?runs[0].start:null,durationMs:Math.round(elapsed(p)),runs,
+          markers:p.markers.map((m,i)=>{const l=lab(m);return{index:i+1,text:say(m),button:l.name,color:PAL[l.color].n,pproColor:PAL[l.color].p,
+            ms:Math.round(m.ms),timecode:hmsTxt(m.ms),frame:Math.round(m.ms/1000*r.real),at:m.at?isoLocal(m.at):null}})}})}))};
+  return{name:"chrono-prises.json",text:JSON.stringify(out,null,2)};
+}
 function xmlFiles(list){ // list of [video, take]; one XML per take, no folders, plus the photos with the same names
   const used={},out=[],vidPh=new Set();
   list.forEach(([v,p])=>{let n=fileSafe(`${v.name} - ${p.name}`);used[n]=(used[n]||0)+1;if(used[n]>1)n+=` (${used[n]})`;
@@ -800,14 +821,14 @@ function dateTag(){const d=new Date();return `${d.getFullYear()}-${pad2(d.getMon
 $("dlOne").onclick=async()=>{
   const v=V(),p=P();await loadPhotos([v.photo,p&&p.photo]);
   if(!p||!p.markers.length){toast(`Aucun marqueur sur ${p?p.name:"cette prise"}`);return}
-  saveZip(xmlFiles([[v,p]]),`${ro()?"Invité - ":""}${v.name} - ${p.name}`);
+  saveZip([...xmlFiles([[v,p]]),dataFile([[v,p]])],`${ro()?"Invité - ":""}${v.name} - ${p.name}`);
 };
 $("dlAll").onclick=async()=>{
   await loadPhotos((ro()?G:S.videos).flatMap(v=>[v.photo,...v.prises.map(p=>p.photo)]));
   const list=[];(ro()?G:S.videos).forEach(v=>v.prises.forEach(p=>{if(p.markers.length)list.push([v,p])}));
   if(!list.length){toast("Aucun marqueur à exporter");return}
   const sess=S.settings.session.trim();
-  saveZip(xmlFiles(list),`${sess||"Chrono"}${ro()?" - Invités":""} - Tout - ${dateTag()}`);
+  saveZip([...xmlFiles(list),dataFile(list)],`${sess||"Chrono"}${ro()?" - Invités":""} - Tout - ${dateTag()}`);
 };
 
 
