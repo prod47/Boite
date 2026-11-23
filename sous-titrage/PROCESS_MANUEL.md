@@ -39,7 +39,21 @@ Le **premier sous-titre est rallongé à gauche jusqu'au tout début de la séqu
 ce qui permet les imports/exports (HappyScribe, réimport Premiere) sans recaler à l'image.
 Le texte du premier sous-titre n'est pas modifié.
 
-## 3. Export SRT
-Panneau Texte → onglet **Sous-titres** → menu ⋯ → **Exporter → Exporter vers un fichier SRT…**
-(autres options du menu : fichier texte, fichier CSV).
-Emplacement / nom du fichier : (à préciser)
+## 3. Export (vidéo + SRT pour HappyScribe)
+Version : **Premiere 26.5.3 (Build 7), UXP 9.3.0**, Windows, carte NVIDIA.
+
+Au lieu d'« Exporter vers un fichier SRT », on fait **Exporter (onglet Exporter) → Fichier média** :
+- Nom de fichier : **<nom de la séquence>.mp4** (ex. `TEASER v4.mp4`)
+- Emplacement : **<dossier du client>\SRT\** (ex. `E:\CFTC 30 JUILLET\SRT\`), le dossier du client = dossier du `.prproj`
+- Préconfiguration : **Happy Scribe** (preset perso)
+  - H.264, 1920x1080, 25 i/s, VBR 1 passe, cible 5 Mbit/s, codage matériel NVIDIA
+  - Audio AAC 320 kbit/s, 48 kHz, stéréo
+  - **Légendes activées** → le `.srt` est exporté à côté du `.mp4`, avec le même nom
+- Étendue : Source entière
+
+Règles dossier :
+- Toujours créer un dossier `SRT` dans le dossier du client.
+- S'il existe déjà : `SRT_V2`, puis `SRT_V3`, etc.
+- Dedans : pour chaque séquence, `<nom>.mp4` + `<nom>.srt`.
+
+Les corrections se font ensuite sur **HappyScribe** (pas dans Premiere).
