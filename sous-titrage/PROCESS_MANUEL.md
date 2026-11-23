@@ -27,5 +27,13 @@ Menu ⋯ → **Créer des sous-titres…** (« Création de légendes »)
 - Écart entre les sous-titres : **0 image**
 - Supprimer la ponctuation : non
 
+Résultat : piste de sous-titres **C1** au-dessus de la vidéo (onglet Texte → Sous-titres).
+
+## 2b. Calage du premier sous-titre (TOUJOURS)
+Le **premier sous-titre est rallongé à gauche jusqu'au tout début de la séquence**
+(ex. 10:00:10:16 → 10:00:00:00). Ainsi le SRT commence à 00:00:00,000 = début de la vidéo,
+ce qui permet les imports/exports (HappyScribe, réimport Premiere) sans recaler à l'image.
+Le texte du premier sous-titre n'est pas modifié.
+
 ## 3. Export SRT
 (à compléter)
