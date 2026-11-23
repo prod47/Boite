@@ -40,4 +40,6 @@ ce qui permet les imports/exports (HappyScribe, réimport Premiere) sans recaler
 Le texte du premier sous-titre n'est pas modifié.
 
 ## 3. Export SRT
-(à compléter)
+Panneau Texte → onglet **Sous-titres** → menu ⋯ → **Exporter → Exporter vers un fichier SRT…**
+(autres options du menu : fichier texte, fichier CSV).
+Emplacement / nom du fichier : (à préciser)
