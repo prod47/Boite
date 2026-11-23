@@ -7,7 +7,7 @@ const REGLES = {
   maxCaracteres: 42,
   maxLignes: 2,
   dureeMin: 3.0,
-  dureeMax: 7.0,
+  dureeMax: 5.5, // Premiere dépasse rarement ~5 s
   pauseCoupe: 1.0, // un silence plus long force un nouveau sous-titre
   ecartColle: 1.0, // si l'écart avec le suivant est plus petit, on colle (écart 0 image)
 };
@@ -79,51 +79,125 @@ function couperLignes(texte, max) {
   return lignes;
 }
 
-// Si 2 lignes, on équilibre (coupure la plus proche du milieu)
+// Petits mots sur lesquels une ligne ou un sous-titre ne doit pas finir
+const MOTS_FAIBLES = new Set(
+  ("le la les l' un une des du de d' à au aux en et ou mais donc que qu' qui pour par sur " +
+   "dans avec sans ce cette ces mon ma mes ton ta tes son sa ses notre nos votre vos leur leurs " +
+   "je tu il elle on nous vous ils elles ne n' se s' y très plus").split(" ")
+);
+const estFaible = (mot) => {
+  const m = mot.toLowerCase().replace(/[«»"]/g, "");
+  return MOTS_FAIBLES.has(m) || /^(l|d|qu|n|s|j|c)'$/.test(m);
+};
+
+// Si 2 lignes, on équilibre (coupure proche du milieu, de préférence après
+// une ponctuation, jamais juste après un petit mot)
 function equilibrer(texte, max) {
   const lignes = couperLignes(texte, max);
   if (lignes.length !== 2) return lignes;
   const mots = texte.split(/\s+/);
   let meilleur = lignes;
-  let ecart = Infinity;
+  let score = Infinity;
   for (let i = 1; i < mots.length; i++) {
     const a = mots.slice(0, i).join(" ");
     const b = mots.slice(i).join(" ");
     if (a.length > max || b.length > max) continue;
-    const d = Math.abs(a.length - b.length);
-    // préférence légère pour couper après une virgule
-    const bonus = /[,;:]$/.test(mots[i - 1]) ? 6 : 0;
-    if (d - bonus < ecart) {
-      ecart = d - bonus;
+    let sc = Math.abs(a.length - b.length);
+    if (/[.?!…]$/.test(mots[i - 1])) sc -= 14;
+    else if (/[,;:]$/.test(mots[i - 1])) sc -= 10;
+    if (estFaible(mots[i - 1])) sc += 12;
+    if (sc < score) {
+      score = sc;
       meilleur = [a, b];
     }
   }
   return meilleur;
 }
 
-function construireSousTitres(mots, regles = REGLES) {
-  const r = { ...REGLES, ...regles };
-  const blocs = [];
-  let bloc = [];
-  const texteDe = (ms) => ms.map((m) => m.texte).join(" ");
+// Coût d'un sous-titre formé des mots m[i..j-1] d'une phrase de n mots
+function coutMorceau(ms, i, j, n) {
+  const texte = ms.slice(i, j).map((m) => m.texte).join(" ");
+  const fin = ms[j - 1].texte;
+  let c = 1;
+  if (j < n) {
+    // coupe au milieu de la phrase
+    if (/[.?!…]$/.test(fin)) c += 0;
+    else if (/[,;:]$/.test(fin)) c += 0.1;
+    else if (/^(et|mais|donc|ou|car|que|qui|pour|parce)$/i.test(ms[j].texte)) c += 0.3; // avant une conjonction
+    else c += 0.6;
+    if (estFaible(fin)) c += 1.5;
+  }
+  // morceau trop court (sauf phrase complète)
+  if (texte.length < 22 && !(i === 0 && j === n) && !/[.?!…]$/.test(fin)) c += 0.8;
+  c += (0.3 * Math.max(0, 35 - texte.length)) / 35; // léger avantage aux morceaux équilibrés
+  return c;
+}
 
-  for (const m of mots) {
-    if (bloc.length) {
-      const dernier = bloc[bloc.length - 1];
-      const tropLong =
-        couperLignes(texteDe([...bloc, m]), r.maxCaracteres).length > r.maxLignes;
-      const pause = m.debut - dernier.fin > r.pauseCoupe;
-      const duree = m.fin - bloc[0].debut > r.dureeMax;
-      const autreLocuteur = m.locuteur !== dernier.locuteur;
-      const finPhrase = dernier.eos && texteDe(bloc).length > 15;
-      if (tropLong || pause || duree || autreLocuteur || finPhrase) {
-        blocs.push(bloc);
-        bloc = [];
+// Découpe optimale d'une phrase en sous-titres qui tiennent (programmation dynamique)
+function decouperPhrase(ms, tient) {
+  const n = ms.length;
+  const best = new Array(n + 1).fill(Infinity);
+  const prev = new Array(n + 1).fill(-1);
+  best[0] = 0;
+  for (let j = 1; j <= n; j++) {
+    for (let i = j - 1; i >= 0; i--) {
+      if (!tient(ms.slice(i, j))) {
+        if (j - i > 1) break; // plus long ne tiendra pas non plus
+      }
+      const c = best[i] + coutMorceau(ms, i, j, n);
+      if (c < best[j]) {
+        best[j] = c;
+        prev[j] = i;
       }
     }
-    bloc.push(m);
   }
-  if (bloc.length) blocs.push(bloc);
+  const morceaux = [];
+  for (let j = n; j > 0; j = prev[j]) morceaux.unshift(ms.slice(prev[j], j));
+  return morceaux;
+}
+
+function construireSousTitres(mots, regles = REGLES) {
+  const r = { ...REGLES, ...regles };
+  const texteDe = (ms) => ms.map((m) => m.texte).join(" ");
+  const tient = (b) =>
+    couperLignes(texteDe(b), r.maxCaracteres).length <= r.maxLignes &&
+    b[b.length - 1].fin - b[0].debut <= r.dureeMax;
+
+  // 1. Phrases : coupure en fin de phrase, sur un silence ou un changement de locuteur
+  const phrases = [];
+  let phrase = [];
+  for (const m of mots) {
+    if (phrase.length) {
+      const dernier = phrase[phrase.length - 1];
+      const pause = m.debut - dernier.fin > r.pauseCoupe;
+      const autreLocuteur = m.locuteur !== dernier.locuteur;
+      const finPhrase = dernier.eos && texteDe(phrase).length > 15;
+      if (pause || autreLocuteur || finPhrase) {
+        phrases.push(phrase);
+        phrase = [];
+      }
+    }
+    phrase.push(m);
+  }
+  if (phrase.length) phrases.push(phrase);
+
+  // 2. Chaque phrase découpée en sous-titres
+  const blocs = [];
+  for (const p of phrases) blocs.push(...decouperPhrase(p, tient));
+
+  // Fusion des tout petits sous-titres (1-2 mots, < 1,2 s) avec le précédent si ça tient
+  for (let i = blocs.length - 1; i > 0; i--) {
+    const b = blocs[i];
+    const court = b.length <= 2 && b[b.length - 1].fin - b[0].debut < 1.2;
+    const prec = blocs[i - 1];
+    if (!court || b[0].locuteur !== prec[prec.length - 1].locuteur) continue;
+    if (b[0].debut - prec[prec.length - 1].fin > r.pauseCoupe) continue;
+    const fusion = [...prec, ...b];
+    if (couperLignes(texteDe(fusion), r.maxCaracteres).length <= r.maxLignes &&
+        fusion[fusion.length - 1].fin - fusion[0].debut <= r.dureeMax + 1) {
+      blocs.splice(i - 1, 2, fusion);
+    }
+  }
 
   const st = blocs.map((b) => ({
     debut: b[0].debut,

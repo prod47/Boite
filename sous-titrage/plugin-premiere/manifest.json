@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.haussmannprod.soustitrage",
   "name": "Sous-titrage Happy Scribe",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "main": "index.html",
   "host": { "app": "premierepro", "minVersion": "26.5.0" },
   "requiredPermissions": {

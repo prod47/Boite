@@ -48,4 +48,40 @@ Corrections par rapport à la 0.1 :
 4. Si la préférence « Détection automatique de la langue » est activée dans Premiere,
    elle prend le pas sur le français demandé par le plugin.
 5. Le preset Happy Scribe a « Légendes activées » : si la séquence a déjà une piste
-   de sous-titres, Premiere écrit aussi un `.srt` ; le plugin le remplace ensuite par le sien.
+   de sous-titres, Premiere écrit aussi `<nom>.mp4.srt` (nom différent : il n'est pas remplacé).
+
+## Version 0.3 — testée le 23/11/2026 (Premiere 26.5.3, TEASER v4 de CFTC v3)
+Résultat : `TEASER v4.mp4` + `TEASER v4.srt` (34 sous-titres, contre 36 dans l'export
+manuel de Premiere ; la plupart des coupes sont identiques, lignes ≤ 42 caractères,
+premier sous-titre à 00:00:00,000). Transcription d'un teaser de 1 min 54 : ~1 min.
+
+Corrections par rapport à la 0.2 :
+- **« Requires locked access »** : les actions Premiere (chutier `_SOUS-TITRAGE`,
+  timecode de début) sont maintenant *créées* dans `project.lockedAccess()`, pas seulement exécutées ;
+- **transcription vide** : `transcribeClipProjectItem` rend la main tout de suite et
+  `hasTranscript()` passe à vrai avec un JSON vide (`"language":"und-zz"`, `words: []`).
+  Le plugin attend maintenant que des mots apparaissent et que leur nombre ne bouge plus ;
+  un SRT vide n'est plus jamais écrit (erreur dans le journal à la place) ;
+- le MP4 importé est retrouvé par son **chemin** (un essai précédent laisse un clip du même nom
+  dans `_SOUS-TITRAGE`) ;
+- le dossier `SRT_Vx` n'est créé qu'après les vérifications ; un dernier dossier resté
+  **vide** après un essai raté est réutilisé au lieu d'en créer un nouveau ;
+- préfixe `\\?\` retiré du chemin du projet dans le journal ;
+- **découpage des sous-titres** refait : phrase par phrase, coupes choisies ensemble
+  (après une ponctuation, avant « et / que / pour… », jamais après un petit mot comme
+  « le, de, pour », pas de fin de phrase orpheline), 5,5 s max par sous-titre.
+
+Format réel du JSON (`Transcript.exportToJSON`), confirmé :
+```
+{ "language": "fr-fr", "speakers": [...],
+  "segments": [ { "start": 4.8, "duration": 23.8, "speaker": "<uuid>", "language": "fr-fr",
+                  "words": [ { "text": "Je", "start": 4.8, "duration": 0.16,
+                               "eos": false, "type": "word", "confidence": 1, "tags": [] } ] } ] }
+```
+Temps en secondes ; la ponctuation est collée au mot ; `eos` = fin de phrase.
+
+Limite connue : la durée minimale de 3 s ne peut pas être respectée quand la parole est
+dense (le sous-titre suivant commence avant) ; l'export manuel de Premiere fait pareil.
+
+En production : laisser **décochée** la case « Garder le JSON de transcription (test) »,
+pour que le dossier SRT envoyé à HappyScribe ne contienne que les MP4 et les SRT.

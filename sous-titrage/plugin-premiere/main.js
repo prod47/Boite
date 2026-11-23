@@ -43,14 +43,21 @@ async function taille(chemin) {
   try { return (await fs.lstat(chemin)).size; } catch { return -1; }
 }
 
-// SRT, puis SRT_V2, SRT_V3…
+async function estVide(chemin) {
+  try { return (await fs.readdir(chemin)).length === 0; } catch { return false; }
+}
+
+// SRT, puis SRT_V2, SRT_V3… (un dernier dossier resté vide après un essai raté est réutilisé)
 async function creerDossierSRT(dossierClient) {
   let nom = "SRT";
   let n = 1;
+  let dernier = null;
   while (await existe(dossierClient + sep + nom)) {
+    dernier = dossierClient + sep + nom;
     n += 1;
     nom = "SRT_V" + n;
   }
+  if (dernier && (await estVide(dernier))) return dernier;
   const chemin = dossierClient + sep + nom;
   await fs.mkdir(chemin);
   return chemin;
@@ -76,11 +83,19 @@ async function attendreFichier(chemin, timeoutMin = 60) {
 }
 
 // ---------- Projet ----------
-function transaction(projet, action, libelle) {
+// Les actions doivent être CRÉÉES et exécutées sous lockedAccess
+// (sinon Premiere renvoie « Requires locked access »).
+function transaction(projet, fabrique, libelle) {
   let ok = false;
+  let erreur = null;
   projet.lockedAccess(() => {
-    ok = projet.executeTransaction((ca) => ca.addAction(action), libelle);
+    try {
+      ok = projet.executeTransaction((ca) => ca.addAction(fabrique()), libelle);
+    } catch (e) {
+      erreur = e;
+    }
   });
+  if (erreur) throw erreur;
   return ok;
 }
 
@@ -134,7 +149,7 @@ async function chutierDeTravail(projet) {
   const racine = await projet.getRootItem();
   let f = await trouverChutier(racine, "_SOUS-TITRAGE");
   if (!f) {
-    transaction(projet, racine.createBinAction("_SOUS-TITRAGE", false), "Chutier sous-titrage");
+    transaction(projet, () => racine.createBinAction("_SOUS-TITRAGE", false), "Chutier sous-titrage");
     f = await trouverChutier(racine, "_SOUS-TITRAGE");
   }
   return f;
@@ -143,16 +158,20 @@ async function chutierDeTravail(projet) {
 async function importerEtTrouver(projet, chutier, chemin, nom) {
   const ok = await projet.importFiles([chemin], true, ppro.ProjectItem.cast(chutier), false);
   if (!ok) throw new Error("import impossible : " + chemin);
-  for (let i = 0; i < 20; i++) {
+  // On retrouve le clip par son chemin (un essai précédent peut avoir laissé un clip du même nom)
+  const cible = chemin.replace(/\//g, "\\").toLowerCase();
+  for (let i = 0; i < 40; i++) {
     for (const item of await chutier.getItems()) {
-      if (item.name === nom || item.name === nom.replace(/\.mp4$/i, "")) {
-        const clip = await enClip(item);
-        if (clip) return clip;
-      }
+      if (item.name !== nom && item.name !== nom.replace(/\.mp4$/i, "")) continue;
+      const clip = await enClip(item);
+      if (!clip) continue;
+      let p = "";
+      try { p = (await clip.getMediaFilePath()) || ""; } catch {}
+      if (p.replace(/\//g, "\\").replace(/^\\\\\?\\/, "").toLowerCase() === cible) return clip;
     }
     await pause(500);
   }
-  throw new Error("clip importé introuvable : " + nom);
+  throw new Error("clip importé introuvable : " + chemin);
 }
 
 // ---------- Transcription ----------
@@ -166,19 +185,40 @@ function codeFrancais() {
   return fr.languageCode;
 }
 
+// Nombre de mots dans le JSON (0 si pas encore prêt)
+function nbMots(json) {
+  try {
+    const d = JSON.parse(json);
+    return (d.segments || []).reduce((n, s) => n + ((s.words && s.words.length) || 0), 0);
+  } catch { return 0; }
+}
+
+// transcribeClipProjectItem rend la main avant la fin : hasTranscript() passe à true
+// tout de suite avec un JSON vide (language "und-zz", words: []). On attend donc que
+// des mots apparaissent et que leur nombre ne bouge plus.
 async function transcrire(clip, langue, timeoutMin = 60) {
-  if (!ppro.Transcript.hasTranscript(clip)) {
-    const ok = await ppro.Transcript.transcribeClipProjectItem(clip, { language: langue });
-    if (!ok) throw new Error("la transcription a échoué");
-    const fin = Date.now() + timeoutMin * 60000;
-    while (!ppro.Transcript.hasTranscript(clip)) {
-      if (Date.now() > fin) throw new Error("transcription trop longue (délai dépassé)");
-      await pause(3000);
+  let json = ppro.Transcript.hasTranscript(clip) ? await ppro.Transcript.exportToJSON(clip) : "";
+  if (nbMots(json) > 0) return json;
+
+  const ok = await ppro.Transcript.transcribeClipProjectItem(clip, { language: langue });
+  if (!ok) throw new Error("la transcription a été refusée par Premiere");
+  const debut = Date.now();
+  const fin = debut + timeoutMin * 60000;
+  let prec = -1;
+  let stable = 0;
+  while (Date.now() < fin) {
+    await pause(5000);
+    json = ppro.Transcript.hasTranscript(clip) ? await ppro.Transcript.exportToJSON(clip) : "";
+    const n = nbMots(json);
+    if (n > 0 && n === prec) {
+      stable += 1;
+      if (stable >= 2) return json;
+    } else {
+      stable = 0;
     }
+    prec = n;
   }
-  const json = await ppro.Transcript.exportToJSON(clip);
-  if (!json) throw new Error("transcription vide");
-  return json;
+  throw new Error("transcription vide ou trop longue (" + Math.round((Date.now() - debut) / 60000) + " min)");
 }
 
 // ---------- Traitement ----------
@@ -190,7 +230,8 @@ async function traiterSequence(projet, ctx, { nom, sequence }) {
   // 1. Timecode de début à 0
   const zero = await sequence.getZeroPoint();
   if (zero && zero.ticksNumber !== 0) {
-    transaction(projet, sequence.createSetZeroPointAction(ppro.TickTime.createWithSeconds(0)), "Timecode 00:00:00:00");
+    const zeroOk = transaction(projet, () => sequence.createSetZeroPointAction(ppro.TickTime.createWithSeconds(0)), "Timecode 00:00:00:00");
+    if (!zeroOk) throw new Error("impossible de remettre le timecode à 00:00:00:00");
     log("  timecode de début remis à 00:00:00:00");
   }
 
@@ -219,7 +260,9 @@ async function traiterSequence(projet, ctx, { nom, sequence }) {
   }
 
   // 4. SRT
-  await fs.writeFile(srt, transcriptionVersSRT(json), { encoding: "utf-8" });
+  const contenu = transcriptionVersSRT(json);
+  if (!contenu.trim()) throw new Error("SRT vide : la transcription ne contient aucun mot");
+  await fs.writeFile(srt, contenu, { encoding: "utf-8" });
   log("  SRT créé ✓");
 }
 
@@ -247,17 +290,17 @@ async function lancer() {
     }
     if (!liste.length) throw new Error("Aucune séquence à traiter.");
 
-    const dossierClient = dossierDe(projet.path);
+    // Préparatifs avant de créer le dossier (pas de dossier vide si ça échoue)
+    const langue = codeFrancais();
+    const chutierTravail = await chutierDeTravail(projet);
+    if (!chutierTravail) throw new Error("chutier _SOUS-TITRAGE impossible à créer");
+
+    const dossierClient = dossierDe(projet.path).replace(/^\\\\\?\\/, ""); // retire le préfixe \\?\
     const dossierSRT = await creerDossierSRT(dossierClient);
     log(`Dossier : ${dossierSRT}`, "titre");
     log(`${liste.length} séquence(s) à traiter`, "titre");
 
-    const ctx = {
-      preset,
-      dossierSRT,
-      langue: codeFrancais(),
-      chutierTravail: await chutierDeTravail(projet),
-    };
+    const ctx = { preset, dossierSRT, langue, chutierTravail };
 
     let ok = 0;
     for (let i = 0; i < liste.length; i++) {
