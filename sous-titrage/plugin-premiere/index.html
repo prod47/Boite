@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<style>
+  body { font-family: sans-serif; font-size: 12px; color: #ddd; background: #232323; margin: 0; padding: 10px; }
+  h1 { font-size: 14px; margin: 0 0 10px; }
+  label { display: block; margin: 8px 0 3px; color: #aaa; }
+  input, select { width: 100%; box-sizing: border-box; }
+  .preset { font-size: 11px; color: #bbb; word-break: break-all; margin: 3px 0; }
+  .boutons { margin: 12px 0; }
+  #journal { background: #1a1a1a; border: 1px solid #333; height: 260px; overflow-y: auto; padding: 6px; font-family: monospace; font-size: 11px; }
+  .titre { color: #fff; font-weight: bold; margin-top: 4px; }
+  .ok { color: #6c6; } .warn { color: #e9b44c; } .err { color: #e66; }
+</style>
+</head>
+<body>
+  <h1>Sous-titrage Happy Scribe</h1>
+
+  <label>Séquences à traiter</label>
+  <select id="mode">
+    <option value="chutier" selected>Toutes les séquences du chutier</option>
+    <option value="active">Seulement la séquence active</option>
+  </select>
+
+  <label>Nom du chutier</label>
+  <input id="chutier" type="text" value="EXPORT">
+
+  <label>Preset d'export</label>
+  <div class="preset" id="preset"></div>
+  <sp-button id="choisir" variant="secondary" size="s">Choisir un autre preset…</sp-button>
+
+  <div class="boutons">
+    <sp-button id="go" variant="cta">Lancer : MP4 + SRT</sp-button>
+  </div>
+
+  <div id="journal"></div>
+  <script src="main.js"></script>
+</body>
+</html>
