@@ -84,7 +84,10 @@ function transaction(projet, action, libelle) {
   return ok;
 }
 
+const estChutier = (item) => item.type === ppro.ProjectItem.TYPE_BIN;
+
 async function enClip(item) {
+  if (estChutier(item)) return null;
   try {
     const clip = ppro.ClipProjectItem.cast(item);
     if (clip && typeof clip.isSequence === "function") return clip;
@@ -93,6 +96,7 @@ async function enClip(item) {
 }
 
 async function enDossier(item) {
+  if (!estChutier(item)) return null;
   try {
     const f = ppro.FolderItem.cast(item);
     if (f && typeof f.getItems === "function") {
@@ -164,7 +168,7 @@ function codeFrancais() {
 
 async function transcrire(clip, langue, timeoutMin = 60) {
   if (!ppro.Transcript.hasTranscript(clip)) {
-    const ok = await ppro.Transcript.transcribeClipProjectItem(clip, { languageCode: langue });
+    const ok = await ppro.Transcript.transcribeClipProjectItem(clip, { language: langue });
     if (!ok) throw new Error("la transcription a échoué");
     const fin = Date.now() + timeoutMin * 60000;
     while (!ppro.Transcript.hasTranscript(clip)) {
@@ -193,15 +197,26 @@ async function traiterSequence(projet, ctx, { nom, sequence }) {
   // 2. Export MP4 (preset Happy Scribe)
   log("  export MP4…");
   const encodeur = ppro.EncoderManager.getManager();
+  const erreurs = [];
+  const surErreur = (e) => erreurs.push(e);
+  try { ppro.EventManager.addEventListener(encodeur, ppro.EncoderManager.EVENT_RENDER_ERROR, surErreur); } catch {}
   const okExport = await encodeur.exportSequence(sequence, ppro.Constants.ExportType.IMMEDIATELY, mp4, ctx.preset, true);
   if (!okExport) throw new Error("l'export a été refusé par Premiere");
-  if (!(await attendreFichier(mp4))) throw new Error("export MP4 non terminé");
+  const fini = await attendreFichier(mp4);
+  try { ppro.EventManager.removeEventListener(encodeur, ppro.EncoderManager.EVENT_RENDER_ERROR, surErreur); } catch {}
+  if (erreurs.length) log("  ⚠ Premiere signale une erreur d'export : " + JSON.stringify(erreurs[0]), "warn");
+  if (!fini) throw new Error("export MP4 non terminé");
   log("  MP4 exporté ✓");
 
   // 3. Transcription Premiere du MP4
   log("  transcription Premiere (français)…");
   const clip = await importerEtTrouver(projet, ctx.chutierTravail, mp4, base + ".mp4");
   const json = await transcrire(clip, ctx.langue);
+
+  if ($("debug").checked) {
+    await fs.writeFile(ctx.dossierSRT + sep + base + ".transcription.json", json, { encoding: "utf-8" });
+    log("  JSON de transcription gardé (débogage)", "warn");
+  }
 
   // 4. SRT
   await fs.writeFile(srt, transcriptionVersSRT(json), { encoding: "utf-8" });

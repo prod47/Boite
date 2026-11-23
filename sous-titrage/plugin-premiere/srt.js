@@ -12,17 +12,29 @@ const REGLES = {
   ecartColle: 1.0, // si l'écart avec le suivant est plus petit, on colle (écart 0 image)
 };
 
+// Premiere compte parfois le temps en « ticks » (254 016 000 000 par seconde)
+const TICKS_PAR_SECONDE = 254016000000;
+const nombre = (v) => {
+  if (v && typeof v === "object") v = v.seconds ?? v.ticks ?? v.value;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+};
+
 // Transforme le JSON Premiere en liste de mots { texte, debut, fin, eos, locuteur }
 function motsDepuisTranscription(json) {
   const data = typeof json === "string" ? JSON.parse(json) : json;
+  const segments = data.segments || (data.transcript && data.transcript.segments) || [];
   const mots = [];
-  for (const seg of data.segments || []) {
+  for (const seg of segments) {
     for (const w of seg.words || []) {
-      const texte = (w.text || "").trim();
+      const texte = String(w.text ?? w.word ?? "").trim();
       if (!texte) continue;
-      const debut = Number(w.start);
-      const fin = debut + Number(w.duration || 0);
-      if (w.type === "punctuation" && mots.length) {
+      const debut = nombre(w.start ?? w.startTime ?? w.offset);
+      let fin = nombre(w.end ?? w.endTime);
+      if (!Number.isFinite(fin)) fin = debut + (nombre(w.duration) || 0);
+      if (!Number.isFinite(debut)) continue;
+      const ponctuation = w.type === "punctuation" || /^[.,;:!?…»)]+$/.test(texte);
+      if (ponctuation && mots.length) {
         // ponctuation collée au mot précédent
         const prec = mots[mots.length - 1];
         prec.texte += texte;
@@ -35,8 +47,16 @@ function motsDepuisTranscription(json) {
         debut,
         fin,
         eos: !!w.eos || /[.?!…]$/.test(texte),
-        locuteur: seg.speaker,
+        locuteur: seg.speaker ?? w.speaker,
       });
+    }
+  }
+  // Temps en ticks ? (une vidéo ne dure pas 10 millions de secondes)
+  const maxi = mots.reduce((m, x) => Math.max(m, x.fin), 0);
+  if (maxi > 1e7) {
+    for (const m of mots) {
+      m.debut /= TICKS_PAR_SECONDE;
+      m.fin /= TICKS_PAR_SECONDE;
     }
   }
   return mots;

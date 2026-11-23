@@ -29,7 +29,23 @@ Aucun token Claude : tout tourne dans Premiere, sur ton PC.
 2. Dans le panneau : cliquer **Lancer : MP4 + SRT**.
 3. Suivre le journal. À la fin, le dossier `SRT` contient les MP4 + SRT pour HappyScribe.
 
-## Version de test (0.1)
-Construit à partir des déclarations officielles de l'API Premiere 26.5.
-Points à vérifier au premier essai : export immédiat, import du MP4, transcription
-française, écriture du SRT. En cas d'erreur, envoyer une capture du journal.
+## Version de test (0.2)
+Vérifiée contre les déclarations officielles de l'API Premiere 26.5 (`@adobe/premierepro` 26.5.1).
+Corrections par rapport à la 0.1 :
+- transcription : l'option de langue s'appelle `language` (la 0.1 envoyait `languageCode`,
+  ignoré → Premiere aurait transcrit dans la langue par défaut des préférences) ;
+- chutiers et séquences distingués par leur type (`ProjectItem.TYPE_BIN`) ;
+- erreurs d'export Premiere affichées dans le journal ;
+- lecture du JSON de transcription plus tolérante (noms de champs, temps en ticks) ;
+- case « Garder le JSON de transcription (test) » : écrit `<nom>.transcription.json`
+  dans le dossier SRT pour comparer avec le SRT de l'export manuel.
+
+### Premier test
+1. Ouvrir `E:\CFTC 30 JUILLET\CFTC v3.prproj`, ouvrir une seule séquence (ex. TEASER v4).
+2. Panneau : « Seulement la séquence active » + cocher « Garder le JSON… » → Lancer.
+3. En cas d'erreur : capture du journal du panneau + onglet Logs/Console de
+   UXP Developer Tools (bouton ⋯ → Debug), et le fichier `.transcription.json`.
+4. Si la préférence « Détection automatique de la langue » est activée dans Premiere,
+   elle prend le pas sur le français demandé par le plugin.
+5. Le preset Happy Scribe a « Légendes activées » : si la séquence a déjà une piste
+   de sous-titres, Premiere écrit aussi un `.srt` ; le plugin le remplace ensuite par le sien.
