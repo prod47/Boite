@@ -83,5 +83,9 @@ Temps en secondes ; la ponctuation est collée au mot ; `eos` = fin de phrase.
 Limite connue : la durée minimale de 3 s ne peut pas être respectée quand la parole est
 dense (le sous-titre suivant commence avant) ; l'export manuel de Premiere fait pareil.
 
+### 0.3.1
+- le `<nom>.mp4.srt` écrit par le preset (légendes activées, séquence avec piste C1) est
+  **supprimé** après l'export : le dossier ne garde que `<nom>.mp4` + `<nom>.srt`.
+
 En production : laisser **décochée** la case « Garder le JSON de transcription (test) »,
 pour que le dossier SRT envoyé à HappyScribe ne contienne que les MP4 et les SRT.

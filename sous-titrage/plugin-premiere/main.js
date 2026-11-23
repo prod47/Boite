@@ -249,6 +249,23 @@ async function traiterSequence(projet, ctx, { nom, sequence }) {
   if (!fini) throw new Error("export MP4 non terminé");
   log("  MP4 exporté ✓");
 
+  // Le preset (légendes activées) écrit aussi <nom>.mp4.srt si la séquence a une piste
+  // de sous-titres : on le supprime pour ne garder que notre <nom>.srt.
+  const srtPreset = mp4 + ".srt";
+  for (let i = 0; i < 5; i++) {
+    if (await existe(srtPreset)) {
+      await pause(1000);
+      try {
+        await fs.unlink(srtPreset);
+        log("  SRT du preset (" + base + ".mp4.srt) supprimé");
+      } catch (e) {
+        log("  ⚠ impossible de supprimer " + base + ".mp4.srt : " + (e.message || e), "warn");
+      }
+      break;
+    }
+    await pause(1000);
+  }
+
   // 3. Transcription Premiere du MP4
   log("  transcription Premiere (français)…");
   const clip = await importerEtTrouver(projet, ctx.chutierTravail, mp4, base + ".mp4");
