@@ -7,6 +7,10 @@ Séquences finales rangées dans le chutier `EXPORT`
 (ex. CFTC PODCAST v4, CFTC VIDEO 01 v3, 02 v3, 03 v4, TEASER v4).
 Séquences démarrant à 10:00:00:00, 25 i/s, audio sur A1–A3.
 
+## 0b. Timecode de début : TOUJOURS 00:00:00:00
+Toutes les séquences doivent démarrer à **00:00:00:00** (pas 10:00:00:00).
+Si une séquence démarre à 10:00:00:00, on change son timecode de début à 0.
+
 ## 1. Transcription
 Panneau Texte → onglet Transcription → menu ⋯ → **Générer une transcription statique…**
 - Langue : **Français**
@@ -31,7 +35,7 @@ Résultat : piste de sous-titres **C1** au-dessus de la vidéo (onglet Texte →
 
 ## 2b. Calage du premier sous-titre (TOUJOURS)
 Le **premier sous-titre est rallongé à gauche jusqu'au tout début de la séquence**
-(ex. 10:00:10:16 → 10:00:00:00). Ainsi le SRT commence à 00:00:00,000 = début de la vidéo,
+(ex. 00:00:10:16 → 00:00:00:00 ; premier sous-titre « Bonjour à toutes et tous. » = 00:00:00:00 → 00:00:12:02). Ainsi le SRT commence à 00:00:00,000 = début de la vidéo,
 ce qui permet les imports/exports (HappyScribe, réimport Premiere) sans recaler à l'image.
 Le texte du premier sous-titre n'est pas modifié.
 
